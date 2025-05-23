@@ -8,10 +8,10 @@ class PDFGenerator {
     this.defaultOptions = {
       format: 'A4',
       margin: {
-        top: '20mm',
-        right: '15mm',
-        bottom: '20mm',
-        left: '15mm'
+        top: 56,    // ~20mm in pixels (1mm ≈ 2.8px at 72dpi)
+        right: 42,  // ~15mm in pixels
+        bottom: 56, // ~20mm in pixels
+        left: 42    // ~15mm in pixels
       },
       printBackground: true,
       preferCSSPageSize: true
@@ -79,14 +79,17 @@ class PDFGenerator {
 
       // Generate PDF
       const pdfOptions = {
-        ...this.defaultOptions,
-        ...options,
+        format: options.format || this.defaultOptions.format,
+        printBackground: true,
+        preferCSSPageSize: true,
         displayHeaderFooter: true,
         headerTemplate: this.getHeaderTemplate(options.repository),
         footerTemplate: this.getFooterTemplate(),
         margin: {
-          ...this.defaultOptions.margin,
-          ...options.margin
+          top: (options.margin && typeof options.margin.top === 'number') ? options.margin.top : this.defaultOptions.margin.top,
+          right: (options.margin && typeof options.margin.right === 'number') ? options.margin.right : this.defaultOptions.margin.right,
+          bottom: (options.margin && typeof options.margin.bottom === 'number') ? options.margin.bottom : this.defaultOptions.margin.bottom,
+          left: (options.margin && typeof options.margin.left === 'number') ? options.margin.left : this.defaultOptions.margin.left
         }
       };
 
@@ -263,7 +266,7 @@ class PDFGenerator {
       });
 
       // Additional wait for rendering
-      await page.waitForTimeout(2000);
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       console.log('Charts loaded and ready for PDF generation');
     } catch (error) {

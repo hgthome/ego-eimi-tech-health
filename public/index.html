@@ -879,13 +879,9 @@
                     ` : ''}
 
                     <div style="text-align: center; margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                        <button id="generate-report-btn" class="btn btn-primary" style="min-width: 200px;">
-                            <i class="fas fa-file-pdf"></i>
-                            Generate Tech Health Report
-                        </button>
                         <button id="generate-streaming-btn" class="btn btn-outline" style="min-width: 200px;">
                             <i class="fas fa-chart-line"></i>
-                            Advanced Analysis
+                            Generate Full Report PDF
                         </button>
                     </div>
                 `;
@@ -1199,7 +1195,7 @@
                             stageText = `Analysis (${data.step || 0}/${data.totalSteps || 6})`;
                             break;
                         case 'report':
-                            stageText = `Report Generation (${data.step || 0}/${data.totalSteps || 5})`;
+                            stageText = `Report Generation...`;
                             break;
                         case 'complete':
                             stageText = 'Complete';

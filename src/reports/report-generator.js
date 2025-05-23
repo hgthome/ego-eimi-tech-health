@@ -60,11 +60,21 @@ class ReportGenerator {
 
       // Step 6: Generate PDF
       console.log('Generating PDF...');
-      const pdfBuffer = await this.pdfGenerator.generatePDF(htmlReport, {
+      
+      // Filter options to only include PDF-specific ones
+      const pdfOptions = {
         reportId,
-        repository: analysisData.repository,
-        ...options
-      });
+        repository: analysisData.repository
+      };
+      
+      // Add any valid PDF options from the options parameter
+      if (options.margin) pdfOptions.margin = options.margin;
+      if (options.format && ['A4', 'Letter', 'Legal'].includes(options.format)) {
+        pdfOptions.format = options.format;
+      }
+      if (options.landscape !== undefined) pdfOptions.landscape = options.landscape;
+      
+      const pdfBuffer = await this.pdfGenerator.generatePDF(htmlReport, pdfOptions);
 
       const report = {
         reportId,
@@ -437,10 +447,10 @@ class ReportGenerator {
   identifyQuickWins(analysisData) {
     const quickWins = [];
 
-    // Based on analysis recommendations
-    if (analysisData.recommendations) {
-      quickWins.push(...analysisData.recommendations
-        .filter(rec => rec.priority === 'High' && rec.effort === 'Low')
+    // Based on analysis recommendations - fix: access recommendations.items array
+    if (analysisData.recommendations && analysisData.recommendations.items && Array.isArray(analysisData.recommendations.items)) {
+      quickWins.push(...analysisData.recommendations.items
+        .filter(rec => (rec.priority === 'High' || rec.priority === 'high') && (rec.effort === 'Low' || rec.effort === 'low'))
         .slice(0, 3)
         .map(rec => rec.title)
       );

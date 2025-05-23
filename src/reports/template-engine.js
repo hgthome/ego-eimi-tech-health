@@ -54,24 +54,45 @@ class TemplateEngine {
    * Sets up Handlebars helpers
    */
   setupHelpers() {
-    // Helper for formatting numbers
-    Handlebars.registerHelper('formatNumber', function(number, decimals = 0) {
-      if (typeof number !== 'number') return 'N/A';
-      return number.toFixed(decimals);
+    // Helper for number formatting
+    Handlebars.registerHelper('formatNumber', function(value, decimals = 0) {
+      if (typeof value !== 'number') return 'N/A';
+      return value.toFixed(decimals);
     });
 
-    // Helper for formatting percentages
-    Handlebars.registerHelper('formatPercent', function(number, decimals = 1) {
-      if (typeof number !== 'number') return 'N/A';
-      return `${number.toFixed(decimals)}%`;
+    // Helper for percentage formatting
+    Handlebars.registerHelper('formatPercent', function(value) {
+      if (typeof value !== 'number') return 'N/A';
+      return (value * 100).toFixed(1) + '%';
+    });
+
+    // Helper for date formatting
+    Handlebars.registerHelper('formatDate', function(date) {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleDateString();
+    });
+
+    // Helper for time formatting
+    Handlebars.registerHelper('formatTime', function(date) {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleTimeString();
+    });
+
+    // Helper for generated date
+    Handlebars.registerHelper('generatedDate', function() {
+      return new Date().toLocaleDateString();
+    });
+
+    // Helper for generated time
+    Handlebars.registerHelper('generatedTime', function() {
+      return new Date().toLocaleTimeString();
     });
 
     // Helper for grade colors
     Handlebars.registerHelper('gradeColor', function(grade) {
       const colors = {
-        'A+': '#4CAF50', 'A': '#8BC34A', 'B+': '#CDDC39',
-        'B': '#FFC107', 'C+': '#FF9800', 'C': '#FF5722',
-        'D': '#F44336', 'F': '#9C27B0'
+        'A+': '#4CAF50', 'A': '#8BC34A', 'B+': '#CDDC39', 'B': '#FFEB3B',
+        'C+': '#FFC107', 'C': '#FF9800', 'D': '#FF5722'
       };
       return colors[grade] || '#9E9E9E';
     });
@@ -80,33 +101,56 @@ class TemplateEngine {
     Handlebars.registerHelper('scoreColor', function(score) {
       if (score >= 90) return '#4CAF50';
       if (score >= 80) return '#8BC34A';
-      if (score >= 70) return '#FFC107';
-      if (score >= 60) return '#FF9800';
-      return '#F44336';
+      if (score >= 70) return '#CDDC39';
+      if (score >= 60) return '#FFC107';
+      return '#FF5722';
     });
 
-    // Helper for risk level colors
+    // Helper for risk colors
     Handlebars.registerHelper('riskColor', function(level) {
       const colors = {
         'Low': '#4CAF50',
-        'Medium': '#FFC107',
-        'High': '#FF9800',
-        'Critical': '#F44336'
+        'Medium': '#FF9800',
+        'High': '#FF5722',
+        'Critical': '#D32F2F'
       };
       return colors[level] || '#9E9E9E';
     });
 
-    // Helper for conditional rendering
+    // Helper for conditional rendering - Fixed to handle missing options.inverse
     Handlebars.registerHelper('ifEquals', function(arg1, arg2, options) {
-      return (arg1 == arg2) ? options.fn(this) : options.inverse(this);
+      if (arg1 == arg2) {
+        return options.fn ? options.fn(this) : '';
+      } else {
+        return options.inverse ? options.inverse(this) : '';
+      }
     });
 
-    // Helper for array length check
+    // Helper for array length check - Fixed to handle missing options.inverse
     Handlebars.registerHelper('ifLength', function(array, length, options) {
       if (Array.isArray(array) && array.length >= length) {
-        return options.fn(this);
+        return options.fn ? options.fn(this) : '';
+      } else {
+        return options.inverse ? options.inverse(this) : '';
       }
-      return options.inverse(this);
+    });
+
+    // Helper for greater than comparison
+    Handlebars.registerHelper('ifGreater', function(arg1, arg2, options) {
+      if (arg1 > arg2) {
+        return options.fn ? options.fn(this) : '';
+      } else {
+        return options.inverse ? options.inverse(this) : '';
+      }
+    });
+
+    // Helper for less than comparison
+    Handlebars.registerHelper('ifLess', function(arg1, arg2, options) {
+      if (arg1 < arg2) {
+        return options.fn ? options.fn(this) : '';
+      } else {
+        return options.inverse ? options.inverse(this) : '';
+      }
     });
 
     // Helper for rendering chart images
@@ -330,15 +374,15 @@ class TemplateEngine {
                 <div class="risk-level-indicator">
                     <h3>Overall Risk Level</h3>
                     <div class="risk-gauge">
-                        {{#if (ifEquals techHealthScore.overall 85)}}
+                        {{#ifGreater techHealthScore.overall 85}}
                         <div class="risk-level low">LOW RISK</div>
                         {{else}}
-                        {{#if (ifEquals techHealthScore.overall 70)}}
+                        {{#ifGreater techHealthScore.overall 70}}
                         <div class="risk-level medium">MEDIUM RISK</div>
                         {{else}}
                         <div class="risk-level high">HIGH RISK</div>
-                        {{/if}}
-                        {{/if}}
+                        {{/ifGreater}}
+                        {{/ifGreater}}
                     </div>
                 </div>
             </div>
