@@ -119,6 +119,48 @@ npm run dev
 
 The server will start at `http://localhost:3000`
 
+### 6. HTTPS Development Setup (Optional)
+
+For testing OAuth applications and secure development, you can run the server with HTTPS:
+
+#### Quick Start with HTTPS
+```bash
+# Generate self-signed SSL certificates (first time only)
+npm run generate-cert
+
+# Start development server with HTTPS
+npm run dev:https
+```
+
+The HTTPS server will start at `https://localhost:3443`
+
+#### Manual Certificate Generation
+If you prefer to generate certificates manually:
+```bash
+mkdir ssl
+openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 365 -nodes \
+  -subj "/C=US/ST=CA/L=San Francisco/O=Tech Health MVP/OU=Development/CN=localhost"
+```
+
+#### Environment Variables for HTTPS
+Add these to your `.env` file:
+```env
+USE_HTTPS=true
+HTTPS_PORT=3443
+```
+
+#### GitHub OAuth with HTTPS
+When using HTTPS for development, update your GitHub OAuth app settings:
+- **Homepage URL:** `https://localhost:3443`
+- **Authorization callback URL:** `https://localhost:3443/api/auth/github/callback`
+
+And update your `.env` file:
+```env
+GITHUB_CALLBACK_URL=https://localhost:3443/api/auth/github/callback
+```
+
+> **Note:** You'll need to accept the self-signed certificate warning in your browser when first accessing the HTTPS server.
+
 ---
 
 ## 📊 API Documentation

@@ -5,7 +5,10 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "start:https": "USE_HTTPS=true node src/index.js",
     "dev": "nodemon src/index.js",
+    "dev:https": "USE_HTTPS=true nodemon src/index.js",
+    "generate-cert": "openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 365 -nodes -subj \"/C=US/ST=CA/L=San Francisco/O=Tech Health MVP/OU=Development/CN=localhost\"",
     "test": "jest",
     "test:watch": "jest --watch"
   },

@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Health MVP - Dynamic Pitch Deck Appendix Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #64748b;
+            --success-color: #059669;
+            --warning-color: #d97706;
+            --danger-color: #dc2626;
+            --background: #f8fafc;
+            --card-background: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            background: var(--card-background);
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .auth-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Main Content */
+        .main {
+            padding: 2rem 0;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #3b82f6 100%);
+            color: white;
+            margin-bottom: 3rem;
+            border-radius: 1rem;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .feature-card {
+            background: var(--card-background);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: var(--shadow);
+            transition: transform 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .feature-icon {
+            width: 3rem;
+            height: 3rem;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+            grid-template-columns: 250px 1fr;
+            gap: 2rem;
+            min-height: 600px;
+        }
+
+        .sidebar {
+            background: var(--card-background);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            height: fit-content;
+        }
+
+        .sidebar h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .repo-list {
+            list-style: none;
+        }
+
+        .repo-item {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .repo-item:hover {
+            background: var(--background);
+        }
+
+        .repo-item.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .main-content {
+            background: var(--card-background);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 2rem;
+            height: 2rem;
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Analysis Results */
+        .analysis-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .health-score {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .score-circle {
+            width: 4rem;
+            height: 4rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .score-a { background: var(--success-color); }
+        .score-b { background: var(--warning-color); }
+        .score-c { background: var(--danger-color); }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: var(--background);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                order: 2;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Utilities */
+        .hidden { display: none !important; }
+        .text-center { text-align: center; }
+        .text-success { color: var(--success-color); }
+        .text-warning { color: var(--warning-color); }
+        .text-danger { color: var(--danger-color); }
+        .mt-2 { margin-top: 1rem; }
+        .mb-2 { margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    Tech Health MVP
+                </div>
+                <div class="auth-section">
+                    <div id="auth-status"></div>
+                    <div id="auth-buttons"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <!-- Landing Page -->
+            <div id="landing-page">
+                <div class="hero">
+                    <h1>Tech Health MVP</h1>
+                    <p>Generate comprehensive tech health appendices for investor pitch decks</p>
+                    <a href="#" id="get-started-btn" class="btn btn-primary">
+                        <i class="fab fa-github"></i>
+                        Get Started with GitHub
+                    </a>
+                </div>
+
+                <div class="features">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <h3>Code Quality Analysis</h3>
+                        <p>Comprehensive analysis of code complexity, test coverage, and maintainability metrics.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-rocket"></i>
+                        </div>
+                        <h3>DORA Metrics</h3>
+                        <p>Industry-standard DevOps performance metrics including deployment frequency and lead time.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h3>Security Assessment</h3>
+                        <p>Vulnerability scanning and security best practices evaluation for your codebase.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <h3>Industry Benchmarking</h3>
+                        <p>Compare your technical metrics against industry standards and peer repositories.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-file-pdf"></i>
+                        </div>
+                        <h3>Professional Reports</h3>
+                        <p>Generate investor-ready PDF appendices with detailed analysis and recommendations.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-lightning-bolt"></i>
+                        </div>
+                        <h3>Real-time Analysis</h3>
+                        <p>Fast, streaming analysis with progress updates and immediate results.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard -->
+            <div id="dashboard" class="dashboard">
+                <aside class="sidebar">
+                    <h3>Your Repositories</h3>
+                    <ul id="repo-list" class="repo-list">
+                        <li class="loading">
+                            <div class="spinner"></div>
+                            Loading repositories...
+                        </li>
+                    </ul>
+                </aside>
+
+                <div class="main-content">
+                    <div id="analysis-content">
+                        <div class="text-center">
+                            <i class="fas fa-mouse-pointer" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+                            <h3>Select a Repository</h3>
+                            <p class="text-secondary">Choose a repository from the sidebar to begin analysis</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        class TechHealthApp {
+            constructor() {
+                this.currentUser = null;
+                this.repositories = [];
+                this.selectedRepo = null;
+                this.init();
+            }
+
+            async init() {
+                await this.checkAuthStatus();
+                this.bindEvents();
+            }
+
+            async checkAuthStatus() {
+                try {
+                    const response = await fetch('/api/auth/status');
+                    const data = await response.json();
+                    
+                    if (data.authenticated) {
+                        this.currentUser = data.user;
+                        this.showDashboard();
+                        await this.loadRepositories();
+                    } else {
+                        this.showLanding();
+                    }
+                    
+                    this.updateAuthUI();
+                } catch (error) {
+                    console.error('Auth check failed:', error);
+                    this.showLanding();
+                }
+            }
+
+            bindEvents() {
+                document.getElementById('get-started-btn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.authenticate();
+                });
+            }
+
+            authenticate() {
+                // Show loading state
+                const btn = document.querySelector('#auth-buttons .btn-primary') || document.getElementById('get-started-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+                btn.disabled = true;
+
+                // Fetch GitHub OAuth URL from API
+                fetch('/api/auth/github')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.authUrl) {
+                            // Redirect to the GitHub OAuth URL
+                            window.location.href = data.authUrl;
+                        } else {
+                            throw new Error('No auth URL received from server');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Authentication error:', error);
+                        
+                        // Restore button state
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                        
+                        // Show error message
+                        alert(`Authentication failed: ${error.message}. Please check your GitHub OAuth configuration.`);
+                    });
+            }
+
+            async logout() {
+                try {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                    this.currentUser = null;
+                    this.showLanding();
+                    this.updateAuthUI();
+                } catch (error) {
+                    console.error('Logout failed:', error);
+                }
+            }
+
+            updateAuthUI() {
+                const statusEl = document.getElementById('auth-status');
+                const buttonsEl = document.getElementById('auth-buttons');
+
+                if (this.currentUser) {
+                    statusEl.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <img src="${this.currentUser.avatar_url}" alt="Avatar" 
+                                 style="width: 2rem; height: 2rem; border-radius: 50%;">
+                            <span>${this.currentUser.name || this.currentUser.login}</span>
+                        </div>
+                    `;
+                    buttonsEl.innerHTML = `
+                        <button class="btn btn-outline" onclick="app.logout()">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </button>
+                    `;
+                } else {
+                    statusEl.innerHTML = '';
+                    buttonsEl.innerHTML = `
+                        <button class="btn btn-primary" onclick="app.authenticate()">
+                            <i class="fab fa-github"></i> Login with GitHub
+                        </button>
+                    `;
+                }
+            }
+
+            showLanding() {
+                document.getElementById('landing-page').style.display = 'block';
+                document.getElementById('dashboard').style.display = 'none';
+            }
+
+            showDashboard() {
+                document.getElementById('landing-page').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'grid';
+            }
+
+            async loadRepositories() {
+                try {
+                    const response = await fetch('/api/github/repositories');
+                    const data = await response.json();
+                    
+                    this.repositories = data.repositories || [];
+                    this.renderRepositories();
+                } catch (error) {
+                    console.error('Failed to load repositories:', error);
+                    document.getElementById('repo-list').innerHTML = `
+                        <li style="color: var(--danger-color); padding: 1rem;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Failed to load repositories
+                        </li>
+                    `;
+                }
+            }
+
+            renderRepositories() {
+                const listEl = document.getElementById('repo-list');
+                
+                if (this.repositories.length === 0) {
+                    listEl.innerHTML = `
+                        <li style="padding: 1rem; color: var(--text-secondary);">
+                            <i class="fas fa-info-circle"></i>
+                            No repositories found
+                        </li>
+                    `;
+                    return;
+                }
+
+                listEl.innerHTML = this.repositories.map(repo => `
+                    <li class="repo-item" onclick="app.selectRepository('${repo.owner.login}', '${repo.name}')">
+                        <div style="font-weight: 500;">${repo.name}</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">
+                            ${repo.language || 'Unknown'} • ${repo.stargazers_count} stars
+                        </div>
+                    </li>
+                `).join('');
+            }
+
+            async selectRepository(owner, repo) {
+                this.selectedRepo = { owner, repo };
+                
+                // Update UI
+                document.querySelectorAll('.repo-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                event.currentTarget.classList.add('active');
+
+                // Show loading
+                document.getElementById('analysis-content').innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Analyzing ${owner}/${repo}...
+                    </div>
+                `;
+
+                try {
+                    await this.loadAnalysis(owner, repo);
+                } catch (error) {
+                    console.error('Analysis failed:', error);
+                    document.getElementById('analysis-content').innerHTML = `
+                        <div class="text-center" style="color: var(--danger-color);">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                            <h3>Analysis Failed</h3>
+                            <p>Unable to analyze ${owner}/${repo}. Please try again.</p>
+                        </div>
+                    `;
+                }
+            }
+
+            async loadAnalysis(owner, repo) {
+                const response = await fetch(`/api/analysis/comprehensive/${owner}/${repo}`);
+                const analysis = await response.json();
+
+                this.renderAnalysis(analysis);
+            }
+
+            renderAnalysis(analysis) {
+                const grade = this.getGrade(analysis.overallScore);
+                const gradeClass = grade.toLowerCase().replace('+', '');
+
+                document.getElementById('analysis-content').innerHTML = `
+                    <div class="analysis-header">
+                        <div>
+                            <h2>${this.selectedRepo.owner}/${this.selectedRepo.repo}</h2>
+                            <p class="text-secondary">Tech Health Analysis</p>
+                        </div>
+                        <div class="health-score">
+                            <div class="score-circle score-${gradeClass}">
+                                ${grade}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600;">${analysis.overallScore}/100</div>
+                                <div class="text-secondary">Overall Score</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">Code Quality</div>
+                            <div class="metric-value">${analysis.codeQuality?.score || 0}/100</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">DORA Performance</div>
+                            <div class="metric-value">${analysis.doraMetrics?.classification || 'Unknown'}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Security Issues</div>
+                            <div class="metric-value">${analysis.codeQuality?.security?.issues?.length || 0}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Test Coverage</div>
+                            <div class="metric-value">${analysis.codeQuality?.testCoverage || 'N/A'}</div>
+                        </div>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 2rem;">
+                        <button class="btn btn-primary" onclick="app.generateReport()">
+                            <i class="fas fa-file-pdf"></i>
+                            Generate Full Report
+                        </button>
+                    </div>
+                `;
+            }
+
+            getGrade(score) {
+                if (score >= 95) return 'A+';
+                if (score >= 90) return 'A';
+                if (score >= 80) return 'B+';
+                if (score >= 70) return 'B';
+                if (score >= 60) return 'C+';
+                if (score >= 50) return 'C';
+                return 'D';
+            }
+
+            async generateReport() {
+                if (!this.selectedRepo) return;
+
+                const { owner, repo } = this.selectedRepo;
+                const url = `/api/reports/generate/${owner}/${repo}?format=pdf`;
+                
+                // Open report in new tab
+                window.open(url, '_blank');
+            }
+        }
+
+        // Initialize app
+        const app = new TechHealthApp();
+    </script>
+</body>
+</html> 

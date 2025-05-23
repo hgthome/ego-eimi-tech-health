@@ -134,3 +134,9 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# SSL certificates for local development
+ssl/
+*.pem
+*.key
+*.crt
