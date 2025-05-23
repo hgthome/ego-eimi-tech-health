@@ -9,6 +9,7 @@ const { RateLimiterMemory } = require('rate-limiter-flexible');
 const authRoutes = require('./auth/routes');
 const githubRoutes = require('./github/routes');
 const analysisRoutes = require('./analysis/routes');
+const reportRoutes = require('./reports/routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -61,6 +62,7 @@ app.use(session({
 app.use('/api/auth', authRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/analysis', analysisRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -76,10 +78,26 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Tech Health MVP - Dynamic Pitch Deck Appendix Generator',
     version: require('../package.json').version,
+    description: 'Generate comprehensive tech health appendices for investor pitch decks',
+    features: [
+      'GitHub repository analysis',
+      'DORA metrics assessment', 
+      'Code quality evaluation',
+      'Security vulnerability scanning',
+      'Industry benchmarking',
+      'Professional PDF report generation'
+    ],
     endpoints: {
       health: '/health',
       auth: '/api/auth',
-      github: '/api/github'
+      github: '/api/github',
+      analysis: '/api/analysis',
+      reports: '/api/reports'
+    },
+    documentation: {
+      phase1: 'GitHub OAuth & Basic Analysis',
+      phase2: 'Advanced Analysis Engine',
+      phase3: 'Report Generation System'
     }
   });
 });
