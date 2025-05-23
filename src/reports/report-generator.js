@@ -122,7 +122,12 @@ class ReportGenerator {
       // Code Quality Metrics
       if (analysisData.analysis.codeQuality) {
         charts.codeQualityOverview = await this.chartGenerator.generateCodeQualityChart(
-          analysisData.analysis.codeQuality
+          this.summarizeCodeQuality(analysisData.analysis.codeQuality)
+        );
+        
+        // Add detailed breakdown chart
+        charts.codeQualityBreakdown = await this.chartGenerator.generateCodeQualityBreakdownChart(
+          this.summarizeCodeQuality(analysisData.analysis.codeQuality)
         );
         
         charts.complexityDistribution = await this.chartGenerator.generateComplexityChart(
@@ -301,26 +306,297 @@ class ReportGenerator {
   }
 
   /**
-   * Summarizes code quality metrics
+   * Summarizes code quality metrics with enhanced calculation
    */
   summarizeCodeQuality(codeQuality) {
     if (!codeQuality) return null;
 
+    // Enhanced code quality calculation with more comprehensive metrics
+    const enhancedQuality = this.calculateEnhancedCodeQuality(codeQuality);
+
     return {
-      overall: codeQuality.overall || {},
+      overall: {
+        score: enhancedQuality.overallScore,
+        grade: enhancedQuality.grade,
+        breakdown: enhancedQuality.breakdown
+      },
       complexity: {
         average: codeQuality.complexity?.averageComplexity || 0,
-        highComplexityFiles: codeQuality.complexity?.highComplexityFiles?.length || 0
+        score: enhancedQuality.breakdown.complexity,
+        highComplexityFiles: codeQuality.complexity?.highComplexityFiles?.length || 0,
+        distribution: this.getComplexityDistribution(codeQuality.complexity)
       },
       security: {
+        score: enhancedQuality.breakdown.security,
         issuesFound: codeQuality.security?.vulnerabilities?.length || 0,
-        riskLevel: codeQuality.security?.riskLevel || 'Unknown'
+        riskLevel: codeQuality.security?.riskLevel || 'Unknown',
+        severityBreakdown: codeQuality.security?.severityBreakdown || {}
       },
       maintainability: {
-        score: codeQuality.maintainability?.score || 0,
-        index: codeQuality.maintainability?.maintainabilityIndex || 0
+        score: enhancedQuality.breakdown.maintainability,
+        index: codeQuality.maintainability?.maintainabilityIndex || 0,
+        documentationScore: codeQuality.maintainability?.documentationScore || 0,
+        codeChurn: codeQuality.maintainability?.codeChurn || 0
+      },
+      dependencies: {
+        score: enhancedQuality.breakdown.dependencies,
+        healthScore: codeQuality.dependencies?.healthScore || 0,
+        outdatedCount: codeQuality.dependencies?.outdatedPackages?.length || 0,
+        vulnerabilityCount: codeQuality.dependencies?.vulnerabilities?.length || 0,
+        totalCount: Object.keys(codeQuality.dependencies?.allDependencies || {}).length
+      },
+      testing: {
+        score: enhancedQuality.breakdown.testing,
+        coverage: codeQuality.testCoverage || 0,
+        hasFramework: this.hasTestingInfrastructure({ analysis: { codeQuality } }),
+        testFiles: this.countTestFiles(codeQuality)
+      },
+      codeStyle: {
+        score: enhancedQuality.breakdown.codeStyle,
+        lintingIssues: codeQuality.linting?.totalIssues || 0,
+        styleConsistency: this.calculateStyleConsistency(codeQuality)
       }
     };
+  }
+
+  /**
+   * Enhanced code quality calculation with comprehensive scoring
+   */
+  calculateEnhancedCodeQuality(codeQuality) {
+    const weights = {
+      complexity: 0.20,      // Code complexity and structure
+      security: 0.25,        // Security vulnerabilities and practices
+      maintainability: 0.15, // Documentation and maintenance metrics
+      dependencies: 0.15,    // Dependency health and management
+      testing: 0.15,         // Test coverage and infrastructure
+      codeStyle: 0.10        // Linting and code style consistency
+    };
+
+    const breakdown = {
+      complexity: this.calculateComplexityScore(codeQuality.complexity),
+      security: this.calculateSecurityScore(codeQuality.security),
+      maintainability: this.calculateMaintainabilityScore(codeQuality.maintainability),
+      dependencies: this.calculateDependencyScore(codeQuality.dependencies),
+      testing: this.calculateTestingScore(codeQuality),
+      codeStyle: this.calculateCodeStyleScore(codeQuality.linting)
+    };
+
+    const overallScore = Object.entries(weights).reduce((total, [key, weight]) => {
+      return total + (breakdown[key] * weight);
+    }, 0);
+
+    return {
+      overallScore: Math.round(overallScore),
+      grade: this.scoreToGrade(overallScore),
+      breakdown,
+      weights
+    };
+  }
+
+  /**
+   * Calculate complexity score
+   */
+  calculateComplexityScore(complexity) {
+    if (!complexity) return 50;
+
+    const avgComplexity = complexity.averageComplexity || 0;
+    const highComplexityFiles = complexity.highComplexityFiles?.length || 0;
+    const totalFiles = complexity.totalFiles || 1;
+
+    let score = 100;
+
+    // Penalize high average complexity
+    if (avgComplexity > 20) score -= 40;
+    else if (avgComplexity > 15) score -= 30;
+    else if (avgComplexity > 10) score -= 20;
+    else if (avgComplexity > 8) score -= 10;
+
+    // Penalize high percentage of complex files
+    const complexityRatio = highComplexityFiles / totalFiles;
+    if (complexityRatio > 0.3) score -= 20;
+    else if (complexityRatio > 0.2) score -= 15;
+    else if (complexityRatio > 0.1) score -= 10;
+
+    return Math.max(0, score);
+  }
+
+  /**
+   * Calculate security score (enhanced)
+   */
+  calculateSecurityScore(security) {
+    if (!security) return 70;
+
+    const vulnerabilities = security.vulnerabilities || [];
+    const severityBreakdown = security.severityBreakdown || {};
+
+    let score = 100;
+
+    // Penalize vulnerabilities by severity
+    score -= (severityBreakdown.critical || 0) * 20;
+    score -= (severityBreakdown.high || 0) * 15;
+    score -= (severityBreakdown.medium || 0) * 8;
+    score -= (severityBreakdown.low || 0) * 3;
+
+    // Bonus for having security practices
+    if (vulnerabilities.length === 0) score += 5;
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /**
+   * Calculate maintainability score (enhanced)
+   */
+  calculateMaintainabilityScore(maintainability) {
+    if (!maintainability) return 50;
+
+    let score = 50; // Base score
+
+    // Documentation score
+    const docScore = maintainability.documentationScore || 0;
+    score += (docScore / 100) * 25;
+
+    // Recent activity bonus
+    const recentActivity = maintainability.recentActivity || 0;
+    if (recentActivity > 20) score += 15;
+    else if (recentActivity > 10) score += 10;
+    else if (recentActivity > 5) score += 5;
+
+    // Code churn penalty
+    const codeChurn = maintainability.codeChurn || 0;
+    if (codeChurn > 0.5) score -= 10;
+    else if (codeChurn > 0.3) score -= 5;
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /**
+   * Calculate dependency score (enhanced)
+   */
+  calculateDependencyScore(dependencies) {
+    if (!dependencies) return 50;
+
+    const outdatedCount = dependencies.outdatedPackages?.length || 0;
+    const vulnerabilityCount = dependencies.vulnerabilities?.length || 0;
+    const totalCount = Object.keys(dependencies.allDependencies || {}).length;
+
+    let score = 100;
+
+    // Penalize outdated dependencies
+    if (totalCount > 0) {
+      const outdatedRatio = outdatedCount / totalCount;
+      if (outdatedRatio > 0.5) score -= 30;
+      else if (outdatedRatio > 0.3) score -= 20;
+      else if (outdatedRatio > 0.2) score -= 15;
+      else if (outdatedRatio > 0.1) score -= 10;
+    }
+
+    // Penalize dependency vulnerabilities
+    score -= vulnerabilityCount * 8;
+
+    // Penalize too many dependencies
+    if (totalCount > 100) score -= 10;
+    else if (totalCount > 50) score -= 5;
+
+    return Math.max(0, score);
+  }
+
+  /**
+   * Calculate testing score (new)
+   */
+  calculateTestingScore(codeQuality) {
+    let score = 0;
+
+    // Test coverage
+    const coverage = codeQuality.testCoverage || 0;
+    score += coverage * 0.6; // Up to 60 points for coverage
+
+    // Testing infrastructure
+    if (this.hasTestingInfrastructure({ analysis: { codeQuality } })) {
+      score += 25;
+    }
+
+    // Test file count
+    const testFileCount = this.countTestFiles(codeQuality);
+    if (testFileCount > 10) score += 15;
+    else if (testFileCount > 5) score += 10;
+    else if (testFileCount > 0) score += 5;
+
+    return Math.min(100, score);
+  }
+
+  /**
+   * Calculate code style score (new)
+   */
+  calculateCodeStyleScore(linting) {
+    if (!linting) return 70;
+
+    let score = 100;
+
+    const totalIssues = linting.totalIssues || 0;
+    const errorCount = linting.errorCount || 0;
+    const warningCount = linting.warningCount || 0;
+
+    // Penalize linting issues
+    score -= errorCount * 3;
+    score -= warningCount * 1;
+
+    // Bonus for zero issues
+    if (totalIssues === 0) score += 10;
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /**
+   * Helper methods for enhanced calculations
+   */
+  getComplexityDistribution(complexity) {
+    if (!complexity || !complexity.functionMetrics) return {};
+
+    const distribution = { low: 0, medium: 0, high: 0, veryHigh: 0 };
+    complexity.functionMetrics.forEach(func => {
+      const comp = func.complexity || 0;
+      if (comp <= 5) distribution.low++;
+      else if (comp <= 10) distribution.medium++;
+      else if (comp <= 20) distribution.high++;
+      else distribution.veryHigh++;
+    });
+
+    return distribution;
+  }
+
+  countTestFiles(codeQuality) {
+    if (!codeQuality.fileStructure) return 0;
+    return codeQuality.fileStructure.filter(file => 
+      file.includes('test') || file.includes('spec') || file.includes('__tests__')
+    ).length;
+  }
+
+  calculateStyleConsistency(codeQuality) {
+    const linting = codeQuality.linting;
+    if (!linting || !linting.totalIssues) return 100;
+
+    const totalFiles = linting.filesWithIssues || 1;
+    const issuesPerFile = linting.totalIssues / totalFiles;
+
+    if (issuesPerFile <= 1) return 95;
+    if (issuesPerFile <= 3) return 80;
+    if (issuesPerFile <= 5) return 60;
+    if (issuesPerFile <= 10) return 40;
+    return 20;
+  }
+
+  scoreToGrade(score) {
+    if (score >= 95) return 'A+';
+    if (score >= 90) return 'A';
+    if (score >= 85) return 'A-';
+    if (score >= 80) return 'B+';
+    if (score >= 75) return 'B';
+    if (score >= 70) return 'B-';
+    if (score >= 65) return 'C+';
+    if (score >= 60) return 'C';
+    if (score >= 55) return 'C-';
+    if (score >= 50) return 'D';
+    return 'F';
   }
 
   /**

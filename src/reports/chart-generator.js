@@ -76,32 +76,53 @@ class ChartGenerator {
   }
 
   /**
-   * Generates Code Quality Overview Chart
+   * Generates Enhanced Code Quality Overview Chart
    */
   async generateCodeQualityChart(codeQuality) {
+    // Enhanced metrics with proper scoring
     const metrics = {
-      'Overall Quality': codeQuality.overall?.score || 0,
-      'Complexity': (codeQuality.complexity?.score || 0),
-      'Security': (codeQuality.security?.score || 0),
-      'Maintainability': (codeQuality.maintainability?.score || 0),
-      'Documentation': (codeQuality.documentation?.score || 0)
+      'Complexity': codeQuality.complexity?.score || 0,
+      'Security': codeQuality.security?.score || 0,
+      'Maintainability': codeQuality.maintainability?.score || 0,
+      'Dependencies': codeQuality.dependencies?.score || 0,
+      'Testing': codeQuality.testing?.score || 0,
+      'Code Style': codeQuality.codeStyle?.score || 0
     };
 
+    // Generate comprehensive radar chart with multiple datasets
     const configuration = {
       type: 'radar',
       data: {
         labels: Object.keys(metrics),
-        datasets: [{
-          label: 'Code Quality Metrics',
-          data: Object.values(metrics),
-          backgroundColor: 'rgba(54, 162, 235, 0.2)',
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 2,
-          pointBackgroundColor: 'rgba(54, 162, 235, 1)',
-          pointBorderColor: '#fff',
-          pointHoverBackgroundColor: '#fff',
-          pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
-        }]
+        datasets: [
+          {
+            label: 'Current Score',
+            data: Object.values(metrics),
+            backgroundColor: 'rgba(34, 197, 94, 0.2)',
+            borderColor: 'rgba(34, 197, 94, 1)',
+            borderWidth: 3,
+            pointBackgroundColor: 'rgba(34, 197, 94, 1)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 6,
+            pointHoverBackgroundColor: '#fff',
+            pointHoverBorderColor: 'rgba(34, 197, 94, 1)',
+            pointHoverRadius: 8
+          },
+          {
+            label: 'Industry Standard (75)',
+            data: Array(Object.keys(metrics).length).fill(75),
+            backgroundColor: 'rgba(107, 114, 128, 0.1)',
+            borderColor: 'rgba(107, 114, 128, 0.6)',
+            borderWidth: 2,
+            borderDash: [5, 5],
+            pointBackgroundColor: 'rgba(107, 114, 128, 0.6)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 1,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }
+        ]
       },
       options: {
         ...this.defaultOptions,
@@ -109,16 +130,71 @@ class ChartGenerator {
           ...this.defaultOptions.plugins,
           title: {
             ...this.defaultOptions.plugins.title,
-            text: 'Code Quality Metrics Overview'
+            text: `Code Quality Overview - Overall Score: ${codeQuality.overall?.score || 0}/100 (${codeQuality.overall?.grade || 'N/A'})`,
+            font: {
+              size: 18,
+              weight: 'bold'
+            }
+          },
+          legend: {
+            position: 'bottom',
+            labels: {
+              font: {
+                size: 12
+              },
+              usePointStyle: true,
+              padding: 20
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context) {
+                const label = context.dataset.label || '';
+                const value = context.parsed.r || 0;
+                const metricName = context.label || '';
+                
+                if (label === 'Current Score') {
+                  const grade = value >= 90 ? 'A' : value >= 80 ? 'B' : value >= 70 ? 'C' : value >= 60 ? 'D' : 'F';
+                  return `${metricName}: ${value}/100 (${grade})`;
+                }
+                return `${label}: ${value}`;
+              }
+            }
           }
         },
         scales: {
           r: {
+            beginAtZero: true,
+            min: 0,
+            max: 100,
+            stepSize: 20,
             angleLines: {
-              display: true
+              display: true,
+              color: 'rgba(0, 0, 0, 0.1)'
             },
-            suggestedMin: 0,
-            suggestedMax: 100
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            pointLabels: {
+              font: {
+                size: 12,
+                weight: 'bold'
+              },
+              color: '#374151'
+            },
+            ticks: {
+              display: true,
+              font: {
+                size: 10
+              },
+              color: '#6B7280',
+              backdropColor: 'rgba(255, 255, 255, 0.8)'
+            }
           }
         }
       }
@@ -126,11 +202,144 @@ class ChartGenerator {
 
     const imageBuffer = await this.chartJSNodeCanvas.renderToBuffer(configuration);
     return {
-      type: 'codeQuality',
-      title: 'Code Quality Overview',
+      type: 'codeQualityOverview',
+      title: 'Enhanced Code Quality Overview',
       image: imageBuffer.toString('base64'),
-      data: metrics
+      data: {
+        metrics,
+        overallScore: codeQuality.overall?.score || 0,
+        grade: codeQuality.overall?.grade || 'N/A',
+        breakdown: codeQuality.overall?.breakdown || {},
+        insights: this.generateCodeQualityInsights(codeQuality)
+      }
     };
+  }
+
+  /**
+   * Generates detailed code quality breakdown chart
+   */
+  async generateCodeQualityBreakdownChart(codeQuality) {
+    const breakdown = codeQuality.overall?.breakdown || {};
+    const weights = {
+      'Complexity (20%)': 0.20,
+      'Security (25%)': 0.25,
+      'Maintainability (15%)': 0.15,
+      'Dependencies (15%)': 0.15,
+      'Testing (15%)': 0.15,
+      'Code Style (10%)': 0.10
+    };
+
+    const scores = [
+      breakdown.complexity || 0,
+      breakdown.security || 0,
+      breakdown.maintainability || 0,
+      breakdown.dependencies || 0,
+      breakdown.testing || 0,
+      breakdown.codeStyle || 0
+    ];
+
+    const colors = scores.map(score => {
+      if (score >= 90) return '#10B981'; // Green
+      if (score >= 80) return '#3B82F6'; // Blue
+      if (score >= 70) return '#F59E0B'; // Yellow
+      if (score >= 60) return '#EF4444'; // Red
+      return '#6B7280'; // Gray
+    });
+
+    const configuration = {
+      type: 'bar',
+      data: {
+        labels: Object.keys(weights),
+        datasets: [{
+          label: 'Component Scores',
+          data: scores,
+          backgroundColor: colors,
+          borderColor: colors.map(color => color + '80'),
+          borderWidth: 2,
+          borderRadius: 6,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        ...this.defaultOptions,
+        indexAxis: 'y',
+        plugins: {
+          ...this.defaultOptions.plugins,
+          title: {
+            ...this.defaultOptions.plugins.title,
+            text: 'Code Quality Component Breakdown'
+          },
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            max: 100,
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            ticks: {
+              callback: function(value) {
+                return value + '%';
+              }
+            }
+          },
+          y: {
+            grid: {
+              display: false
+            }
+          }
+        }
+      }
+    };
+
+    const imageBuffer = await this.chartJSNodeCanvas.renderToBuffer(configuration);
+    return {
+      type: 'codeQualityBreakdown',
+      title: 'Code Quality Component Breakdown',
+      image: imageBuffer.toString('base64'),
+      data: { breakdown, weights }
+    };
+  }
+
+  /**
+   * Generates code quality insights
+   */
+  generateCodeQualityInsights(codeQuality) {
+    const insights = [];
+    const metrics = codeQuality.overall?.breakdown || {};
+
+    // Testing insights
+    if (metrics.testing >= 90) {
+      insights.push('Excellent testing practices with comprehensive coverage');
+    } else if (metrics.testing < 50) {
+      insights.push('Testing infrastructure needs significant improvement');
+    }
+
+    // Security insights
+    if (metrics.security >= 95) {
+      insights.push('Outstanding security posture with no critical vulnerabilities');
+    } else if (metrics.security < 70) {
+      insights.push('Security vulnerabilities require immediate attention');
+    }
+
+    // Complexity insights
+    if (metrics.complexity >= 85) {
+      insights.push('Well-structured code with low complexity');
+    } else if (metrics.complexity < 60) {
+      insights.push('High code complexity may impact maintainability');
+    }
+
+    // Dependencies insights
+    if (metrics.dependencies >= 80) {
+      insights.push('Modern dependency management with up-to-date packages');
+    } else if (metrics.dependencies < 60) {
+      insights.push('Dependency health needs attention - outdated or vulnerable packages');
+    }
+
+    return insights.slice(0, 4); // Top 4 insights
   }
 
   /**
