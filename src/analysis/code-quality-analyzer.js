@@ -2,8 +2,10 @@ const fs = require('fs').promises;
 const path = require('path');
 const { execSync } = require('child_process');
 const semver = require('semver');
-const fetch = require('node-fetch');
 const async = require('async');
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
 
 class CodeQualityAnalyzer {
   constructor(githubService) {
@@ -20,6 +22,61 @@ class CodeQualityAnalyzer {
         'max-params': ['warn', 4]
       }
     };
+  }
+
+  /**
+   * HTTP request wrapper using Node.js built-in modules
+   */
+  async makeHttpRequest(url, options = {}) {
+    return new Promise((resolve, reject) => {
+      const urlObj = new URL(url);
+      const isHttps = urlObj.protocol === 'https:';
+      const client = isHttps ? https : http;
+      
+      const requestOptions = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || (isHttps ? 443 : 80),
+        path: urlObj.pathname + urlObj.search,
+        method: options.method || 'GET',
+        headers: {
+          'User-Agent': 'TechHealthAnalyzer/1.0',
+          ...options.headers
+        }
+      };
+
+      const req = client.request(requestOptions, (res) => {
+        let data = '';
+        
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        res.on('end', () => {
+          try {
+            const response = {
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              status: res.statusCode,
+              statusText: res.statusMessage,
+              json: async () => JSON.parse(data),
+              text: async () => data
+            };
+            resolve(response);
+          } catch (error) {
+            reject(new Error(`Failed to parse response: ${error.message}`));
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        reject(new Error(`Request failed: ${error.message}`));
+      });
+
+      if (options.body) {
+        req.write(options.body);
+      }
+
+      req.end();
+    });
   }
 
   /**
@@ -219,8 +276,9 @@ class CodeQualityAnalyzer {
       // Analyze each dependency
       for (const [name, version] of Object.entries(allDependencies)) {
         try {
+          const cleanCurrentVersion = this.cleanVersionString(version);
           const [vulnData, latestVersion] = await Promise.all([
-            this.checkVulnerabilities(name, version),
+            this.checkVulnerabilities(name, version), // Pass original version for vulnerability check
             this.getLatestVersion(name)
           ]);
 
@@ -228,13 +286,24 @@ class CodeQualityAnalyzer {
             vulnerabilities.push(...vulnData);
           }
 
-          if (latestVersion && semver.gt(latestVersion, version)) {
-            outdatedPackages.push({
-              name,
-              current: version,
-              latest: latestVersion,
-              majorUpdate: semver.major(latestVersion) > semver.major(version)
-            });
+          if (latestVersion) {
+            const cleanLatestVersion = this.cleanVersionString(latestVersion);
+            
+            // Only compare if both versions are valid
+            if (semver.valid(cleanCurrentVersion) && semver.valid(cleanLatestVersion)) {
+              try {
+                if (semver.gt(cleanLatestVersion, cleanCurrentVersion)) {
+                  outdatedPackages.push({
+                    name,
+                    current: cleanCurrentVersion,
+                    latest: cleanLatestVersion,
+                    majorUpdate: semver.major(cleanLatestVersion) > semver.major(cleanCurrentVersion)
+                  });
+                }
+              } catch (compareError) {
+                console.warn(`Error comparing versions for ${name}: ${cleanCurrentVersion} vs ${cleanLatestVersion}`, compareError.message);
+              }
+            }
           }
         } catch (error) {
           console.warn(`Failed to analyze dependency ${name}:`, error.message);
@@ -260,15 +329,16 @@ class CodeQualityAnalyzer {
    */
   async checkVulnerabilities(packageName, version) {
     try {
-      // Use npm audit data and OSV database for vulnerability checking
-      const cacheKey = `${packageName}@${version}`;
+      // Clean the version string to remove range specifiers
+      const cleanVersion = this.cleanVersionString(version);
+      const cacheKey = `${packageName}@${cleanVersion}`;
       
       if (this.vulnerabilityCache.has(cacheKey)) {
         return this.vulnerabilityCache.get(cacheKey);
       }
 
       // Simulate vulnerability check (in real implementation, integrate with Snyk/OSV API)
-      const vulnerabilities = await this.queryVulnerabilityDatabase(packageName, version);
+      const vulnerabilities = await this.queryVulnerabilityDatabase(packageName, cleanVersion);
       
       this.vulnerabilityCache.set(cacheKey, vulnerabilities);
       return vulnerabilities;
@@ -660,17 +730,280 @@ class CodeQualityAnalyzer {
   }
 
   async queryVulnerabilityDatabase(packageName, version) {
-    // Placeholder for vulnerability database integration
-    // In production, integrate with Snyk, OSV, or other vulnerability databases
-    return [];
+    try {
+      const vulnerabilities = [];
+      
+      // Query OSV (Open Source Vulnerabilities) database
+      try {
+        const osvResponse = await this.makeHttpRequest('https://api.osv.dev/v1/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            version: version,
+            package: {
+              name: packageName,
+              ecosystem: this.getPackageEcosystem(packageName)
+            }
+          })
+        });
+
+        if (osvResponse.ok) {
+          const osvData = await osvResponse.json();
+          if (osvData.vulns) {
+            vulnerabilities.push(...osvData.vulns.map(vuln => ({
+              id: vuln.id,
+              summary: vuln.summary || 'Security vulnerability detected',
+              severity: this.mapOSVSeverity(vuln.database_specific?.severity || vuln.severity),
+              source: 'OSV',
+              package: packageName,
+              version: version,
+              references: vuln.references || [],
+              affected: vuln.affected || [],
+              published: vuln.published,
+              modified: vuln.modified
+            })));
+          }
+        }
+      } catch (osvError) {
+        console.warn(`OSV query failed for ${packageName}:`, osvError.message);
+      }
+
+      // Query GitHub Advisory Database
+      try {
+        const ghAdvisoryResponse = await this.makeHttpRequest(
+          `https://api.github.com/advisories?package=${encodeURIComponent(packageName)}&ecosystem=npm`,
+          {
+            headers: {
+              'Accept': 'application/vnd.github.v3+json',
+              'User-Agent': 'TechHealthAnalyzer/1.0'
+            }
+          }
+        );
+
+        if (ghAdvisoryResponse.ok) {
+          const advisories = await ghAdvisoryResponse.json();
+          vulnerabilities.push(...advisories.map(advisory => ({
+            id: advisory.ghsa_id,
+            summary: advisory.summary,
+            severity: advisory.severity.toLowerCase(),
+            source: 'GitHub Advisory',
+            package: packageName,
+            version: version,
+            references: [advisory.html_url],
+            cve: advisory.cve_id,
+            published: advisory.published_at,
+            updated: advisory.updated_at
+          })));
+        }
+      } catch (ghError) {
+        console.warn(`GitHub Advisory query failed for ${packageName}:`, ghError.message);
+      }
+
+      // Simulate npm audit-like vulnerability check
+      if (vulnerabilities.length === 0) {
+        // Check against known vulnerable version patterns
+        const knownVulnPatterns = this.getKnownVulnerabilityPatterns();
+        const matchedVulns = knownVulnPatterns.filter(pattern => 
+          pattern.package === packageName && this.isVersionVulnerable(version, pattern.versions)
+        );
+
+        vulnerabilities.push(...matchedVulns.map(pattern => ({
+          id: `INTERNAL-${pattern.id}`,
+          summary: pattern.summary,
+          severity: pattern.severity,
+          source: 'Internal Database',
+          package: packageName,
+          version: version,
+          references: pattern.references || []
+        })));
+      }
+
+      return vulnerabilities;
+    } catch (error) {
+      console.error(`Error querying vulnerability database for ${packageName}:`, error);
+      return [];
+    }
   }
 
   async getLatestVersion(packageName) {
     try {
-      // Placeholder for package registry API
-      // In production, query npm registry, PyPI, etc.
+      // Determine package ecosystem and query appropriate registry
+      const ecosystem = this.getPackageEcosystem(packageName);
+      
+      switch (ecosystem) {
+        case 'npm':
+          return await this.getNpmLatestVersion(packageName);
+        case 'PyPI':
+          return await this.getPyPILatestVersion(packageName);
+        case 'Maven':
+          return await this.getMavenLatestVersion(packageName);
+        case 'NuGet':
+          return await this.getNuGetLatestVersion(packageName);
+        case 'Go':
+          return await this.getGoModuleLatestVersion(packageName);
+        case 'RubyGems':
+          return await this.getRubyGemsLatestVersion(packageName);
+        default:
+          console.warn(`Unsupported package ecosystem: ${ecosystem} for ${packageName}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`Error getting latest version for ${packageName}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get latest version from npm registry
+   */
+  async getNpmLatestVersion(packageName) {
+    try {
+      const response = await this.makeHttpRequest(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.version;
+      }
+      
       return null;
     } catch (error) {
+      console.warn(`Failed to get npm latest version for ${packageName}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Get latest version from PyPI
+   */
+  async getPyPILatestVersion(packageName) {
+    try {
+      const response = await this.makeHttpRequest(`https://pypi.org/pypi/${encodeURIComponent(packageName)}/json`, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.info.version;
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`Failed to get PyPI latest version for ${packageName}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Get latest version from Maven Central
+   */
+  async getMavenLatestVersion(packageName) {
+    try {
+      // Maven packages have group:artifact format
+      const [groupId, artifactId] = packageName.includes(':') ? 
+        packageName.split(':') : [packageName, packageName];
+      
+      const response = await this.makeHttpRequest(
+        `https://search.maven.org/solrsearch/select?q=g:"${groupId}"+AND+a:"${artifactId}"&rows=1&wt=json`,
+        {
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.response.docs.length > 0) {
+          return data.response.docs[0].latestVersion;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`Failed to get Maven latest version for ${packageName}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Get latest version from NuGet
+   */
+  async getNuGetLatestVersion(packageName) {
+    try {
+      const response = await this.makeHttpRequest(
+        `https://api.nuget.org/v3-flatcontainer/${packageName.toLowerCase()}/index.json`,
+        {
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.versions && data.versions.length > 0) {
+          return data.versions[data.versions.length - 1]; // Last version in the array
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`Failed to get NuGet latest version for ${packageName}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Get latest version for Go modules
+   */
+  async getGoModuleLatestVersion(packageName) {
+    try {
+      // Use Go proxy API
+      const response = await this.makeHttpRequest(`https://proxy.golang.org/${packageName}/@latest`, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.Version;
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`Failed to get Go module latest version for ${packageName}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Get latest version from RubyGems
+   */
+  async getRubyGemsLatestVersion(packageName) {
+    try {
+      const response = await this.makeHttpRequest(`https://rubygems.org/api/v1/gems/${encodeURIComponent(packageName)}.json`, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.version;
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`Failed to get RubyGems latest version for ${packageName}:`, error.message);
       return null;
     }
   }
@@ -968,6 +1301,185 @@ class CodeQualityAnalyzer {
       .sort(([,a], [,b]) => b - a)
       .slice(0, 5)
       .map(([area, count]) => ({ area, count }));
+  }
+
+  /**
+   * Determines the package ecosystem based on package name and context
+   */
+  getPackageEcosystem(packageName) {
+    // Default to npm for most packages, but detect others based on naming patterns
+    if (packageName.includes(':')) {
+      // Maven format (group:artifact)
+      return 'Maven';
+    }
+    
+    if (packageName.includes('/') && !packageName.startsWith('@')) {
+      // Go module format
+      return 'Go';
+    }
+    
+    // Check for language-specific patterns
+    if (packageName.match(/^[A-Z][a-zA-Z0-9]*(\.[A-Z][a-zA-Z0-9]*)*$/)) {
+      // PascalCase with dots suggests NuGet
+      return 'NuGet';
+    }
+    
+    // Default to npm
+    return 'npm';
+  }
+
+  /**
+   * Maps OSV severity levels to standardized levels
+   */
+  mapOSVSeverity(severity) {
+    if (!severity) return 'medium';
+    
+    const severityLower = severity.toLowerCase();
+    
+    if (severityLower.includes('critical') || severityLower.includes('high')) {
+      return 'critical';
+    }
+    if (severityLower.includes('moderate') || severityLower.includes('medium')) {
+      return 'medium';
+    }
+    if (severityLower.includes('low') || severityLower.includes('minor')) {
+      return 'low';
+    }
+    
+    return 'medium'; // Default
+  }
+
+  /**
+   * Returns known vulnerability patterns for common packages
+   */
+  getKnownVulnerabilityPatterns() {
+    return [
+      {
+        id: 'LODASH-PROTOTYPE-POLLUTION',
+        package: 'lodash',
+        versions: ['<4.17.12'],
+        severity: 'high',
+        summary: 'Prototype pollution vulnerability in lodash',
+        references: ['https://github.com/advisories/GHSA-jf85-cpcp-j695']
+      },
+      {
+        id: 'JQUERY-XSS',
+        package: 'jquery',
+        versions: ['<3.5.0'],
+        severity: 'medium',
+        summary: 'Cross-site scripting vulnerability in jQuery',
+        references: ['https://github.com/advisories/GHSA-gxr4-xjj5-5px2']
+      },
+      {
+        id: 'EXPRESS-DOS',
+        package: 'express',
+        versions: ['<4.17.1'],
+        severity: 'medium',
+        summary: 'Denial of service vulnerability in Express',
+        references: ['https://github.com/advisories/GHSA-rv95-896h-c2vc']
+      },
+      {
+        id: 'MOMENT-RCE',
+        package: 'moment',
+        versions: ['<2.29.2'],
+        severity: 'high',
+        summary: 'Regular expression denial of service in moment',
+        references: ['https://github.com/advisories/GHSA-8hfj-j24r-96c4']
+      },
+      {
+        id: 'AXIOS-SSRF',
+        package: 'axios',
+        versions: ['<0.21.1'],
+        severity: 'medium',
+        summary: 'Server-side request forgery in axios',
+        references: ['https://github.com/advisories/GHSA-cph5-m8f7-6c5x']
+      }
+    ];
+  }
+
+  /**
+   * Cleans version strings to remove semantic version range specifiers
+   */
+  cleanVersionString(version) {
+    if (!version || typeof version !== 'string') {
+      return '0.0.0';
+    }
+
+    // Remove common semver range specifiers
+    let cleanVersion = version
+      .replace(/^[\^~>=<]+/, '') // Remove prefixes like ^, ~, >=, <=, >, <
+      .replace(/\s.*$/, '') // Remove everything after first space (removes stuff like "|| 1.2.3")
+      .replace(/[^\d.-]/g, '') // Keep only digits, dots, and dashes
+      .trim();
+
+    // Handle special cases
+    if (!cleanVersion || cleanVersion === '') {
+      return '0.0.0';
+    }
+
+    // Ensure we have at least major.minor.patch format
+    const parts = cleanVersion.split('.');
+    while (parts.length < 3) {
+      parts.push('0');
+    }
+
+    // Take only first 3 parts (major.minor.patch)
+    cleanVersion = parts.slice(0, 3).join('.');
+
+    // Validate that it's a proper semver
+    try {
+      if (semver.valid(cleanVersion)) {
+        return cleanVersion;
+      }
+    } catch (error) {
+      // If semver validation fails, try to coerce it
+      try {
+        const coerced = semver.coerce(cleanVersion);
+        if (coerced) {
+          return coerced.version;
+        }
+      } catch (coerceError) {
+        console.warn(`Could not parse version ${version}, using 0.0.0`);
+        return '0.0.0';
+      }
+    }
+
+    return '0.0.0';
+  }
+
+  /**
+   * Checks if a version is vulnerable based on version ranges
+   */
+  isVersionVulnerable(version, vulnerableRanges) {
+    try {
+      const cleanVersion = this.cleanVersionString(version);
+      
+      // Validate the cleaned version
+      if (!semver.valid(cleanVersion)) {
+        console.warn(`Invalid version after cleaning: ${cleanVersion} (from ${version})`);
+        return false;
+      }
+
+      for (const range of vulnerableRanges) {
+        try {
+          // Clean the range as well if needed
+          let cleanRange = range;
+          if (typeof range === 'string') {
+            // The range should be kept as-is since it might be a valid semver range like "<4.17.12"
+            if (semver.satisfies(cleanVersion, cleanRange)) {
+              return true;
+            }
+          }
+        } catch (rangeError) {
+          console.warn(`Error checking range ${range} against version ${cleanVersion}:`, rangeError.message);
+          continue;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.warn(`Error checking version vulnerability for ${version}:`, error.message);
+      return false;
+    }
   }
 }
 

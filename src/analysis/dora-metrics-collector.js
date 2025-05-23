@@ -513,65 +513,215 @@ class DORAMetricsCollector {
     return 'low';
   }
 
-  // Trend calculation methods
-  calculateTrends(owner, repo, timeRange) {
-    // Placeholder for trend analysis
-    // In a full implementation, this would compare current metrics with previous periods
-    return {
-      deploymentFrequency: 'stable',
-      leadTime: 'improving',
-      changeFailureRate: 'stable',
-      mttr: 'stable'
-    };
+  /**
+   * Calculates trends by comparing current metrics with historical periods
+   */
+  async calculateTrends(owner, repo, timeRange) {
+    try {
+      console.log(`Calculating DORA metrics trends for ${owner}/${repo}`);
+      
+      const endDate = new Date();
+      const currentPeriodStart = new Date(endDate.getTime() - (timeRange * 24 * 60 * 60 * 1000));
+      const previousPeriodStart = new Date(currentPeriodStart.getTime() - (timeRange * 24 * 60 * 60 * 1000));
+      
+      // Get metrics for current and previous periods
+      const [currentMetrics, previousMetrics] = await Promise.all([
+        this.calculatePeriodMetrics(owner, repo, currentPeriodStart, endDate),
+        this.calculatePeriodMetrics(owner, repo, previousPeriodStart, currentPeriodStart)
+      ]);
+
+             return {
+         deploymentFrequency: this.calculateDeploymentFrequencyChange(
+           currentMetrics.deploymentFrequency,
+           previousMetrics.deploymentFrequency
+         ),
+         leadTime: this.calculateLeadTimeChange(
+           currentMetrics.leadTime,
+           previousMetrics.leadTime
+         ),
+         changeFailureRate: this.calculateChangeFailureRateChange(
+           currentMetrics.changeFailureRate,
+           previousMetrics.changeFailureRate
+         ),
+         mttr: this.calculateMTTRChange(
+           currentMetrics.mttr,
+           previousMetrics.mttr
+         ),
+         overall: this.calculateOverallTrendChange(currentMetrics, previousMetrics),
+        dataPoints: {
+          currentPeriod: currentMetrics,
+          previousPeriod: previousMetrics,
+          timeRange: `${timeRange} days`
+        }
+      };
+    } catch (error) {
+      console.error('Error calculating trends:', error);
+      return {
+        deploymentFrequency: 'stable',
+        leadTime: 'stable', 
+        changeFailureRate: 'stable',
+        mttr: 'stable',
+        overall: 'stable',
+        error: 'Unable to calculate trends due to insufficient data'
+      };
+    }
   }
 
-  // Default values for error cases
-  getDefaultDeploymentFrequency() {
-    return {
-      totalDeployments: 0,
-      deploymentsPerDay: 0,
-      deploymentsPerWeek: 0,
-      frequency: 'low',
-      recentDeployments: [],
-      trend: 'unknown'
-    };
+  /**
+   * Calculates metrics for a specific time period
+   */
+  async calculatePeriodMetrics(owner, repo, startDate, endDate) {
+    try {
+      const [
+        deploymentFrequency,
+        leadTime,
+        changeFailureRate,
+        mttr
+      ] = await Promise.all([
+        this.calculateDeploymentFrequency(owner, repo, startDate, endDate),
+        this.calculateLeadTimeForChanges(owner, repo, startDate, endDate),
+        this.calculateChangeFailureRate(owner, repo, startDate, endDate),
+        this.calculateMeanTimeToRestore(owner, repo, startDate, endDate)
+      ]);
+
+      return {
+        deploymentFrequency: deploymentFrequency.deploymentsPerDay || 0,
+        leadTime: leadTime.averageLeadTimeHours || 0,
+        changeFailureRate: changeFailureRate.changeFailureRate || 0,
+        mttr: mttr.meanTimeToRestoreHours || 0,
+        period: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          days: Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+        }
+      };
+    } catch (error) {
+      console.warn(`Error calculating period metrics:`, error.message);
+      return {
+        deploymentFrequency: 0,
+        leadTime: 0,
+        changeFailureRate: 0,
+        mttr: 0
+      };
+    }
   }
 
-  getDefaultLeadTime() {
-    return {
-      averageLeadTimeHours: 0,
-      averageLeadTimeDays: 0,
-      classification: 'unknown',
-      leadTimeDetails: [],
-      distribution: {},
-      trend: 'unknown'
-    };
+     /**
+    * Calculates deployment frequency change
+    */
+   calculateDeploymentFrequencyChange(current, previous) {
+    if (previous === 0) {
+      return current > 0 ? 'improving' : 'stable';
+    }
+
+    const changePercent = ((current - previous) / previous) * 100;
+    
+    if (changePercent > 20) return 'improving';
+    if (changePercent < -20) return 'declining';
+    if (changePercent > 5) return 'slightly_improving';
+    if (changePercent < -5) return 'slightly_declining';
+    return 'stable';
   }
 
-  getDefaultChangeFailureRate() {
-    return {
-      changeFailureRate: 0,
-      classification: 'unknown',
-      totalDeployments: 0,
-      failedDeployments: 0,
-      failureDetails: [],
-      trend: 'unknown'
-    };
+     /**
+    * Calculates lead time change
+    */
+   calculateLeadTimeChange(current, previous) {
+    if (previous === 0) {
+      return current > 0 ? 'declining' : 'stable';
+    }
+
+    const changePercent = ((current - previous) / previous) * 100;
+    
+    // For lead time, lower is better
+    if (changePercent < -20) return 'improving';
+    if (changePercent > 20) return 'declining';
+    if (changePercent < -5) return 'slightly_improving';
+    if (changePercent > 5) return 'slightly_declining';
+    return 'stable';
   }
 
-  getDefaultMTTR() {
-    return {
-      meanTimeToRestoreHours: 0,
-      meanTimeToRestoreDays: 0,
-      classification: 'unknown',
-      incidentsAnalyzed: 0,
-      resolutionDetails: [],
-      severityBreakdown: {},
-      trend: 'unknown'
-    };
+     /**
+    * Calculates change failure rate change
+    */
+   calculateChangeFailureRateChange(current, previous) {
+    if (previous === 0) {
+      return current > 0 ? 'declining' : 'stable';
+    }
+
+    const changePercent = ((current - previous) / previous) * 100;
+    
+    // For failure rate, lower is better
+    if (changePercent < -20) return 'improving';
+    if (changePercent > 20) return 'declining';
+    if (changePercent < -5) return 'slightly_improving';
+    if (changePercent > 5) return 'slightly_declining';
+    return 'stable';
   }
 
-  // Additional calculation methods (simplified for brevity)
+     /**
+    * Calculates MTTR change
+    */
+   calculateMTTRChange(current, previous) {
+    if (previous === 0) {
+      return current > 0 ? 'declining' : 'stable';
+    }
+
+    const changePercent = ((current - previous) / previous) * 100;
+    
+    // For MTTR, lower is better
+    if (changePercent < -20) return 'improving';
+    if (changePercent > 20) return 'declining';
+    if (changePercent < -5) return 'slightly_improving';
+    if (changePercent > 5) return 'slightly_declining';
+    return 'stable';
+  }
+
+     /**
+    * Calculates overall trend change across all DORA metrics
+    */
+   calculateOverallTrendChange(currentMetrics, previousMetrics) {
+     const trends = [
+       this.calculateDeploymentFrequencyChange(
+         currentMetrics.deploymentFrequency,
+         previousMetrics.deploymentFrequency
+       ),
+       this.calculateLeadTimeChange(
+         currentMetrics.leadTime,
+         previousMetrics.leadTime
+       ),
+       this.calculateChangeFailureRateChange(
+         currentMetrics.changeFailureRate,
+         previousMetrics.changeFailureRate
+       ),
+       this.calculateMTTRChange(
+         currentMetrics.mttr,
+         previousMetrics.mttr
+       )
+     ];
+
+    // Score trends: improving = 2, slightly_improving = 1, stable = 0, slightly_declining = -1, declining = -2
+    const trendScores = trends.map(trend => {
+      switch (trend) {
+        case 'improving': return 2;
+        case 'slightly_improving': return 1;
+        case 'stable': return 0;
+        case 'slightly_declining': return -1;
+        case 'declining': return -2;
+        default: return 0;
+      }
+    });
+
+    const averageScore = trendScores.reduce((sum, score) => sum + score, 0) / trendScores.length;
+
+    if (averageScore > 1) return 'improving';
+    if (averageScore < -1) return 'declining';
+    if (averageScore > 0.25) return 'slightly_improving';
+    if (averageScore < -0.25) return 'slightly_declining';
+    return 'stable';
+  }
+
+  // Helper methods for data processing
   formatDeploymentHistory(releases, events) {
     return [...releases, ...events]
       .sort((a, b) => new Date(b.published_at || b.date) - new Date(a.published_at || a.date))
@@ -632,6 +782,52 @@ class DORAMetricsCollector {
     if (recentAvg < olderAvg * 0.9) return 'improving';
     if (recentAvg > olderAvg * 1.1) return 'worsening';
     return 'stable';
+  }
+
+  // Default values for error cases
+  getDefaultDeploymentFrequency() {
+    return {
+      totalDeployments: 0,
+      deploymentsPerDay: 0,
+      deploymentsPerWeek: 0,
+      frequency: 'low',
+      recentDeployments: [],
+      trend: 'unknown'
+    };
+  }
+
+  getDefaultLeadTime() {
+    return {
+      averageLeadTimeHours: 0,
+      averageLeadTimeDays: 0,
+      classification: 'unknown',
+      leadTimeDetails: [],
+      distribution: {},
+      trend: 'unknown'
+    };
+  }
+
+  getDefaultChangeFailureRate() {
+    return {
+      changeFailureRate: 0,
+      classification: 'unknown',
+      totalDeployments: 0,
+      failedDeployments: 0,
+      failureDetails: [],
+      trend: 'unknown'
+    };
+  }
+
+  getDefaultMTTR() {
+    return {
+      meanTimeToRestoreHours: 0,
+      meanTimeToRestoreDays: 0,
+      classification: 'unknown',
+      incidentsAnalyzed: 0,
+      resolutionDetails: [],
+      severityBreakdown: {},
+      trend: 'unknown'
+    };
   }
 }
 

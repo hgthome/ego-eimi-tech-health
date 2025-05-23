@@ -174,6 +174,85 @@ class TemplateEngine {
         `<span class="badge badge-${badgeClass}">${text}</span>`
       );
     });
+
+    // Helper for capitalizing text
+    Handlebars.registerHelper('capitalize', function(str) {
+      if (typeof str !== 'string') return '';
+      return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+    });
+
+    // Helper for lowercase text
+    Handlebars.registerHelper('lowercase', function(str) {
+      if (typeof str !== 'string') return '';
+      return str.toLowerCase();
+    });
+
+    // Helper for less than comparison with index
+    Handlebars.registerHelper('ifLessThan', function(arg1, arg2, options) {
+      if (arg1 < arg2) {
+        return options.fn ? options.fn(this) : '';
+      } else {
+        return options.inverse ? options.inverse(this) : '';
+      }
+    });
+
+    // Helper for array index comparison
+    Handlebars.registerHelper('ifIndex', function(index, comparison, value, options) {
+      let result = false;
+      switch (comparison) {
+        case '<':
+          result = index < value;
+          break;
+        case '>':
+          result = index > value;
+          break;
+        case '<=':
+          result = index <= value;
+          break;
+        case '>=':
+          result = index >= value;
+          break;
+        case '==':
+          result = index == value;
+          break;
+        default:
+          result = false;
+      }
+      
+      if (result) {
+        return options.fn ? options.fn(this) : '';
+      } else {
+        return options.inverse ? options.inverse(this) : '';
+      }
+    });
+
+    // Helper for array existence check
+    Handlebars.registerHelper('ifExists', function(value, options) {
+      if (value !== undefined && value !== null) {
+        return options.fn ? options.fn(this) : '';
+      } else {
+        return options.inverse ? options.inverse(this) : '';
+      }
+    });
+
+    // Helper for badge styling
+    Handlebars.registerHelper('badge', function(type, text) {
+      const badgeClasses = {
+        'critical': 'badge-danger',
+        'high': 'badge-warning', 
+        'medium': 'badge-warning',
+        'low': 'badge-info',
+        'success': 'badge-success',
+        'warning': 'badge-warning',
+        'danger': 'badge-danger',
+        'info': 'badge-info'
+      };
+      
+      const badgeClass = badgeClasses[type] || 'badge-secondary';
+      return new Handlebars.SafeString(
+        `<span class="badge ${badgeClass}">${text}</span>`
+      );
+    });
   }
 
   /**
