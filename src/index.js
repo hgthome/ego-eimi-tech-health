@@ -8,6 +8,7 @@ const { RateLimiterMemory } = require('rate-limiter-flexible');
 // Import route modules
 const authRoutes = require('./auth/routes');
 const githubRoutes = require('./github/routes');
+const analysisRoutes = require('./analysis/routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -59,6 +60,7 @@ app.use(session({
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/github', githubRoutes);
+app.use('/api/analysis', analysisRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

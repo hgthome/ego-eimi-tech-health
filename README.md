@@ -1,6 +1,6 @@
 # Tech Health MVP - Dynamic Pitch Deck Appendix Generator
 
-A dynamic pitch deck appendix generator that audits your codebase to build investor confidence.
+A powerful platform that audits your codebase to build investor confidence through comprehensive technical health analysis.
 
 ## 🎯 Project Overview
 
@@ -24,6 +24,43 @@ A dynamic pitch deck appendix generator that audits your codebase to build inves
 - **Basic Analytics** - Repository statistics and health scoring
 - **RESTful API** - Clean API endpoints for all operations
 - **Security Best Practices** - Rate limiting, input validation, session management
+
+---
+
+## 🚀 Phase 2 Features (Current)
+
+### Core Analysis Engine
+- **Comprehensive Code Quality Analysis**: Complexity metrics, dependency health, security scanning, and maintainability assessment
+- **DORA Metrics Collection**: Deployment frequency, lead time for changes, change failure rate, and mean time to recovery
+- **Industry Benchmarking**: Compare against industry standards, peer repositories, and project-type specific benchmarks
+- **Executive Summary Generation**: Investor-ready summaries with actionable insights and recommendations
+
+### Advanced Capabilities
+- **Real-time Streaming Analysis**: Server-sent events for progress tracking during analysis
+- **Multi-dimensional Benchmarking**: Industry, peer, project-type, and size-based comparisons
+- **Security Vulnerability Detection**: Pattern-based security scanning and dependency vulnerability assessment
+- **Intelligent Caching**: Performance optimization with configurable cache management
+- **Batch Analysis**: Analyze multiple repositories simultaneously
+
+## 📊 Analysis Components
+
+### Code Quality Analyzer
+- **Complexity Analysis**: Cyclomatic complexity measurement using `complexity-report`
+- **Dependency Health**: Version analysis, vulnerability scanning, and outdated package detection
+- **Code Linting**: Pattern-based analysis for common issues and security vulnerabilities
+- **Maintainability Metrics**: Documentation scores, contributor analysis, and issue resolution tracking
+
+### DORA Metrics Collector
+- **Deployment Frequency**: Release and deployment event analysis
+- **Lead Time for Changes**: Time from commit to production measurement
+- **Change Failure Rate**: Post-deployment issue correlation and analysis
+- **Mean Time to Recovery**: Incident resolution time calculation
+
+### Benchmarking Engine
+- **Industry Standards**: Compare against established software development benchmarks
+- **Peer Comparison**: Performance ranking among similar repositories
+- **Project Type Analysis**: Framework and language-specific benchmark comparison
+- **Size Category Matching**: Scale-appropriate performance expectations
 
 ---
 

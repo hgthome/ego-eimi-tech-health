@@ -418,31 +418,250 @@ class GitHubService {
   }
 
   /**
-   * Calculate a basic health score (0-100) based on available metrics
+   * Calculates a basic health score for the repository
    */
   calculateBasicHealthScore(metrics) {
     let score = 0;
-    
-    // Activity score (40 points max)
-    if (metrics.commits_last_30_days > 10) score += 20;
-    else if (metrics.commits_last_30_days > 5) score += 15;
-    else if (metrics.commits_last_30_days > 0) score += 10;
-    
-    if (metrics.contributors_count > 5) score += 20;
-    else if (metrics.contributors_count > 2) score += 15;
-    else if (metrics.contributors_count > 1) score += 10;
-    
-    // Quality score (30 points max)
-    if (metrics.has_license) score += 10;
-    if (metrics.has_recent_release) score += 10;
-    if (metrics.language_diversity > 2) score += 10;
-    
-    // Issue management score (30 points max)
-    if (metrics.open_issues_count === 0) score += 30;
-    else if (metrics.open_issues_count < 5) score += 20;
-    else if (metrics.open_issues_count < 20) score += 10;
-    
-    return Math.min(score, 100);
+    const maxScore = 100;
+
+    // Activity Score (40 points)
+    const activityScore = Math.min(40, 
+      (metrics.commits_last_30_days * 2) + 
+      (metrics.contributors_count * 5) + 
+      (metrics.daysSinceLastCommit > 0 ? Math.max(0, 20 - metrics.daysSinceLastCommit) : 20)
+    );
+
+    // Quality Score (30 points) 
+    const qualityScore = 
+      (metrics.has_license ? 10 : 0) +
+      (metrics.has_recent_release ? 10 : 0) +
+      (metrics.language_diversity > 1 ? 10 : 0);
+
+    // Popularity/Community Score (30 points)
+    const popularityScore = Math.min(30,
+      Math.log10(metrics.stars + 1) * 5 +
+      Math.log10(metrics.forks_count + 1) * 3 +
+      Math.log10(metrics.watchers_count + 1) * 2
+    );
+
+    score = activityScore + qualityScore + popularityScore;
+    return Math.min(maxScore, Math.round(score));
+  }
+
+  /**
+   * Gets repository files with optional filtering
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name  
+   * @param {string} extensions - Comma-separated file extensions (e.g., '.js,.ts')
+   * @returns {Array} Array of file objects
+   */
+  async getRepositoryFiles(owner, repo, extensions = '') {
+    try {
+      const tree = await this.getRepositoryTree(owner, repo);
+      let files = tree.tree.filter(item => item.type === 'blob');
+      
+      if (extensions) {
+        const extArray = extensions.split(',').map(ext => ext.trim().toLowerCase());
+        files = files.filter(file => {
+          const fileExt = '.' + file.path.split('.').pop().toLowerCase();
+          return extArray.includes(fileExt);
+        });
+      }
+      
+      return files;
+    } catch (error) {
+      console.error(`Error getting repository files for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Gets the repository tree structure
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Object} Repository tree
+   */
+  async getRepositoryTree(owner, repo) {
+    try {
+      const response = await this.octokit.rest.git.getTree({
+        owner,
+        repo,
+        tree_sha: 'HEAD',
+        recursive: true
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting repository tree for ${owner}/${repo}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets the content of a specific file
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @param {string} path - File path
+   * @returns {string} File content
+   */
+  async getFileContent(owner, repo, path) {
+    try {
+      const response = await this.octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path
+      });
+      
+      if (response.data.type === 'file') {
+        return Buffer.from(response.data.content, 'base64').toString('utf-8');
+      } else {
+        throw new Error('Path is not a file');
+      }
+    } catch (error) {
+      console.error(`Error getting file content for ${owner}/${repo}/${path}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets commit history for DORA metrics
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Array} Commit history
+   */
+  async getCommitHistory(owner, repo) {
+    try {
+      // Use the authenticated client if available, otherwise create a temporary one
+      if (!this.octokit) {
+        throw new Error('GitHub client not initialized. Use getRepositoryCommits with access token instead.');
+      }
+
+      const response = await this.octokit.rest.repos.listCommits({
+        owner,
+        repo,
+        per_page: 100
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting commit history for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Gets contributors for DORA metrics
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Array} Contributors
+   */
+  async getContributors(owner, repo) {
+    try {
+      if (!this.octokit) {
+        throw new Error('GitHub client not initialized. Use getRepositoryContributors with access token instead.');
+      }
+
+      const response = await this.octokit.rest.repos.listContributors({
+        owner,
+        repo,
+        per_page: 100
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting contributors for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Gets issues for DORA metrics
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Array} Issues
+   */
+  async getIssues(owner, repo) {
+    try {
+      if (!this.octokit) {
+        throw new Error('GitHub client not initialized. Use getRepositoryIssues with access token instead.');
+      }
+
+      const response = await this.octokit.rest.issues.listForRepo({
+        owner,
+        repo,
+        state: 'all',
+        per_page: 100
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting issues for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Gets releases for DORA metrics
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Array} Releases
+   */
+  async getReleases(owner, repo) {
+    try {
+      if (!this.octokit) {
+        throw new Error('GitHub client not initialized. Use getRepositoryReleases with access token instead.');
+      }
+
+      const response = await this.octokit.rest.repos.listReleases({
+        owner,
+        repo,
+        per_page: 100
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting releases for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Gets repository details for analysis
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Object} Repository details
+   */
+  async getRepositoryDetails(owner, repo) {
+    try {
+      if (!this.octokit) {
+        throw new Error('GitHub client not initialized. Use getRepository with access token instead.');
+      }
+
+      const response = await this.octokit.rest.repos.get({
+        owner,
+        repo
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting repository details for ${owner}/${repo}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Sets the authenticated octokit instance for use with analysis methods
+   * @param {string} accessToken - GitHub access token
+   */
+  setAuthenticatedClient(accessToken) {
+    this.octokit = this.createOctokit(accessToken);
+  }
+
+  /**
+   * Clears the authenticated client
+   */
+  clearAuthenticatedClient() {
+    this.octokit = null;
   }
 }
 
