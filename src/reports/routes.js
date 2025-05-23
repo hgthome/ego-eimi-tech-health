@@ -16,7 +16,7 @@ const reportGenerator = new ReportGenerator();
 router.get('/generate/:owner/:repo', requireAuth, async (req, res) => {
   try {
     const { owner, repo } = req.params;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
     
     const options = {
       format: req.query.format || 'html', // html, pdf, both
@@ -95,7 +95,7 @@ router.get('/generate/:owner/:repo', requireAuth, async (req, res) => {
 router.get('/streaming/:owner/:repo', requireAuth, async (req, res) => {
   try {
     const { owner, repo } = req.params;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
     
     // Setup Server-Sent Events
     res.writeHead(200, {
@@ -279,7 +279,7 @@ router.get('/:reportId/download', requireAuth, async (req, res) => {
 router.post('/batch', requireAuth, async (req, res) => {
   try {
     const { repositories, options = {} } = req.body;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
 
     if (!Array.isArray(repositories) || repositories.length === 0) {
       return res.status(400).json({

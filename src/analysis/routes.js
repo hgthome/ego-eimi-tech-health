@@ -12,7 +12,7 @@ const router = express.Router();
 router.get('/comprehensive/:owner/:repo', requireAuth, async (req, res) => {
   try {
     const { owner, repo } = req.params;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
     
     const options = {
       forceRefresh: req.query.refresh === 'true',
@@ -56,7 +56,7 @@ router.get('/comprehensive/:owner/:repo', requireAuth, async (req, res) => {
 router.get('/streaming/:owner/:repo', requireAuth, async (req, res) => {
   try {
     const { owner, repo } = req.params;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
     
     // Setup Server-Sent Events
     res.writeHead(200, {
@@ -123,7 +123,7 @@ router.get('/streaming/:owner/:repo', requireAuth, async (req, res) => {
 router.get('/code-quality/:owner/:repo', requireAuth, async (req, res) => {
   try {
     const { owner, repo } = req.params;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
 
     console.log(`Starting code quality analysis for ${owner}/${repo}`);
     
@@ -159,7 +159,7 @@ router.get('/code-quality/:owner/:repo', requireAuth, async (req, res) => {
 router.get('/dora-metrics/:owner/:repo', requireAuth, async (req, res) => {
   try {
     const { owner, repo } = req.params;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
 
     const options = {
       timeRange: parseInt(req.query.timeRange) || 90
@@ -199,7 +199,7 @@ router.get('/dora-metrics/:owner/:repo', requireAuth, async (req, res) => {
 router.get('/benchmarking/:owner/:repo', requireAuth, async (req, res) => {
   try {
     const { owner, repo } = req.params;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
 
     console.log(`Starting benchmarking analysis for ${owner}/${repo}`);
     
@@ -256,7 +256,7 @@ router.get('/benchmarking/:owner/:repo', requireAuth, async (req, res) => {
 router.get('/summary/:owner/:repo', requireAuth, async (req, res) => {
   try {
     const { owner, repo } = req.params;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
 
     console.log(`Getting analysis summary for ${owner}/${repo}`);
     
@@ -407,7 +407,7 @@ router.delete('/cache', requireAuth, async (req, res) => {
 router.post('/batch', requireAuth, async (req, res) => {
   try {
     const { repositories } = req.body;
-    const accessToken = req.session.accessToken;
+    const accessToken = req.session.user.accessToken;
 
     if (!repositories || !Array.isArray(repositories)) {
       return res.status(400).json({

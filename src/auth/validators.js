@@ -68,6 +68,7 @@ function validateRepositoryName(repoName) {
 
 /**
  * Check if user is authenticated middleware
+ * Enhanced to also validate access token exists
  */
 function requireAuth(req, res, next) {
   if (!req.session.user) {
@@ -76,6 +77,15 @@ function requireAuth(req, res, next) {
       message: 'Please authenticate with GitHub first'
     });
   }
+  
+  // Also check if access token exists
+  if (!req.session.user.accessToken) {
+    return res.status(401).json({
+      error: 'Access token missing',
+      message: 'Please reauthenticate with GitHub - your session may have expired'
+    });
+  }
+  
   next();
 }
 
