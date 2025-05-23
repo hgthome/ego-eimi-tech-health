@@ -247,6 +247,17 @@
             100% { transform: rotate(360deg); }
         }
 
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
         /* Analysis Results */
         .analysis-header {
             display: flex;
@@ -454,8 +465,68 @@
             }
 
             async init() {
+                // Handle authentication callback parameters
+                this.handleAuthCallback();
+                
                 await this.checkAuthStatus();
                 this.bindEvents();
+            }
+
+            handleAuthCallback() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const authStatus = urlParams.get('auth');
+                const error = urlParams.get('error');
+                const message = urlParams.get('message');
+
+                if (authStatus === 'success') {
+                    // Show success message
+                    this.showNotification('Authentication successful! Welcome to Tech Health MVP.', 'success');
+                    // Clear URL parameters
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } else if (error) {
+                    // Show error message
+                    const errorMessage = message || 'Authentication failed. Please try again.';
+                    this.showNotification(`Authentication Error: ${decodeURIComponent(errorMessage)}`, 'error');
+                    // Clear URL parameters
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }
+
+            showNotification(message, type = 'info') {
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.className = `notification notification-${type}`;
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 1rem 1.5rem;
+                    border-radius: 0.5rem;
+                    color: white;
+                    font-weight: 500;
+                    z-index: 1000;
+                    max-width: 400px;
+                    box-shadow: var(--shadow-lg);
+                    background: ${type === 'success' ? 'var(--success-color)' : type === 'error' ? 'var(--danger-color)' : 'var(--primary-color)'};
+                    animation: slideIn 0.3s ease-out;
+                `;
+                
+                notification.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i>
+                        <span>${message}</span>
+                        <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: white; margin-left: auto; cursor: pointer; font-size: 1.2rem;">&times;</button>
+                    </div>
+                `;
+
+                document.body.appendChild(notification);
+
+                // Auto-remove after 5 seconds
+                setTimeout(() => {
+                    if (notification.parentElement) {
+                        notification.remove();
+                    }
+                }, 5000);
             }
 
             async checkAuthStatus() {
@@ -522,12 +593,45 @@
 
             async logout() {
                 try {
-                    await fetch('/api/auth/logout', { method: 'POST' });
+                    // Find the logout button and show loading state
+                    const logoutBtn = document.querySelector('#auth-buttons .btn-outline');
+                    if (logoutBtn) {
+                        const originalText = logoutBtn.innerHTML;
+                        logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging out...';
+                        logoutBtn.disabled = true;
+                    }
+
+                    // Call logout API
+                    const response = await fetch('/api/auth/logout', { method: 'POST' });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Logout failed: ${response.status} ${response.statusText}`);
+                    }
+
+                    // Clear all user state
                     this.currentUser = null;
+                    this.repositories = [];
+                    this.selectedRepo = null;
+                    
+                    // Show success notification
+                    this.showNotification('Successfully logged out. See you next time!', 'success');
+                    
+                    // Update UI
                     this.showLanding();
                     this.updateAuthUI();
+                    
                 } catch (error) {
                     console.error('Logout failed:', error);
+                    
+                    // Show error notification
+                    this.showNotification(`Logout failed: ${error.message}`, 'error');
+                    
+                    // Restore logout button if it exists
+                    const logoutBtn = document.querySelector('#auth-buttons .btn-outline');
+                    if (logoutBtn) {
+                        logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
+                        logoutBtn.disabled = false;
+                    }
                 }
             }
 
@@ -599,14 +703,19 @@
                     return;
                 }
 
-                listEl.innerHTML = this.repositories.map(repo => `
-                    <li class="repo-item" onclick="app.selectRepository('${repo.owner.login}', '${repo.name}')">
-                        <div style="font-weight: 500;">${repo.name}</div>
-                        <div style="font-size: 0.875rem; color: var(--text-secondary);">
-                            ${repo.language || 'Unknown'} • ${repo.stargazers_count} stars
-                        </div>
-                    </li>
-                `).join('');
+                listEl.innerHTML = this.repositories.map(repo => {
+                    // Parse owner and repo name from full_name (format: "owner/repo")
+                    const [owner, repoName] = repo.full_name.split('/');
+                    
+                    return `
+                        <li class="repo-item" onclick="app.selectRepository('${owner}', '${repoName}')">
+                            <div style="font-weight: 500;">${repoName}</div>
+                            <div style="font-size: 0.875rem; color: var(--text-secondary);">
+                                ${repo.language || 'Unknown'} • ${repo.stargazers_count} stars
+                            </div>
+                        </li>
+                    `;
+                }).join('');
             }
 
             async selectRepository(owner, repo) {

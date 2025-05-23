@@ -36,16 +36,15 @@ router.get('/github/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.status(400).json({
-      error: 'GitHub OAuth error',
-      details: error
-    });
+    console.error('GitHub OAuth error:', error);
+    // Redirect to frontend with error parameter
+    return res.redirect(`/?error=oauth_error&message=${encodeURIComponent(error)}`);
   }
 
   if (!code) {
-    return res.status(400).json({
-      error: 'Missing authorization code'
-    });
+    console.error('Missing authorization code in callback');
+    // Redirect to frontend with error parameter
+    return res.redirect(`/?error=missing_code&message=${encodeURIComponent('Authorization code missing')}`);
   }
 
   try {
@@ -62,22 +61,14 @@ router.get('/github/callback', async (req, res) => {
       accessToken: authResult.accessToken // Note: In production, encrypt this
     };
 
-    res.json({
-      message: 'Authentication successful',
-      user: {
-        id: authResult.user.id,
-        login: authResult.user.login,
-        name: authResult.user.name,
-        email: authResult.user.email,
-        avatar_url: authResult.user.avatar_url
-      }
-    });
+    // Redirect to frontend dashboard on success
+    console.log('Authentication successful for user:', authResult.user.login);
+    res.redirect('/?auth=success');
+    
   } catch (error) {
     console.error('GitHub callback error:', error);
-    res.status(500).json({
-      error: 'Authentication failed',
-      message: error.message
-    });
+    // Redirect to frontend with error parameter
+    res.redirect(`/?error=auth_failed&message=${encodeURIComponent(error.message)}`);
   }
 });
 
