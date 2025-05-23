@@ -12,9 +12,9 @@ Chose Node.JS/Express for familiarity, ease of development and agility, especial
 
 I've used mostly Cursor with Sonnet 4 in the following way:
 
-- Given the problem, I asked for a concise and clear implementation planning markdown LLM optimized (IMPLEMENTATION_GUIDE.md)
+- Given the problem, I asked for a concise and clear implementation planning markdown LLM optimized ([IMPLEMENTATION_GUIDE.md](/docs/IMPLEMENTATION_GUIDE.md))
 - The suggested implementation was created and split into 4 phases.
-- For each implementation phase, the Agent updated the DEVELOPMENT_LOG.md, so i could review and course correct.
+- For each implementation phase, the Agent updated the [DEVELOPMENT_LOG.md](/docs/DEVELOPMENT_LOG.md), so i could review and course correct.
 - I implemented by phases, reviewed and tested validating base functionality before each phase commit.
 - After all four phases were correctly implemented, I began testing locally and correcting eventual mistakes/bugs.
 - With the base functionality working as expected, I implemented unit testing with moderate coverage.
