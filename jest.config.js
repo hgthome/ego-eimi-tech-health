@@ -6,10 +6,7 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   
   // Test file patterns
-  testMatch: [
-    '<rootDir>/tests/**/*.test.js',
-    '<rootDir>/tests/**/*.spec.js'
-  ],
+  testMatch: ['**/__tests__/**/*.js', '**/?(*.)+(spec|test).js'],
   
   // Coverage settings
   collectCoverage: true,
@@ -18,8 +15,7 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/index.js', // Exclude main entry point
-    '!**/node_modules/**',
-    '!**/coverage/**'
+    '!src/**/node_modules/**'
   ],
   
   // Coverage thresholds
@@ -33,7 +29,7 @@ module.exports = {
   },
   
   // Module paths
-  roots: ['<rootDir>/src', '<rootDir>/tests'],
+  roots: ['<rootDir>/tests'],
   
   // Clear mocks between tests
   clearMocks: true,
@@ -66,5 +62,13 @@ module.exports = {
   notify: false,
   
   // Bail on first test failure (for CI)
-  bail: process.env.CI ? 1 : 0
+  bail: process.env.CI ? 1 : 0,
+  
+  transformIgnorePatterns: [
+    'node_modules/(?!(node-fetch|fetch-blob|formdata-polyfill|data-uri-to-buffer)/)'
+  ],
+  
+  moduleNameMapper: {
+    '^node-fetch$': '<rootDir>/tests/__mocks__/node-fetch.js'
+  }
 }; 

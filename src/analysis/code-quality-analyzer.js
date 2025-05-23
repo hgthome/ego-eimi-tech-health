@@ -1324,6 +1324,20 @@ class CodeQualityAnalyzer {
       return 'NuGet';
     }
     
+    // Check for well-known Ruby gems
+    const knownRubyGems = [
+      'rails', 'rspec', 'bundler', 'devise', 'sidekiq', 'puma', 'unicorn',
+      'capistrano', 'faker', 'factory_bot', 'nokogiri', 'activerecord',
+      'activesupport', 'actionpack', 'actionview', 'actionmailer', 'activejob',
+      'actioncable', 'sprockets', 'sass-rails', 'coffee-rails', 'turbolinks',
+      'jbuilder', 'bootsnap', 'listen', 'spring', 'web-console', 'byebug',
+      'pry', 'rubocop', 'simplecov', 'capybara', 'selenium-webdriver'
+    ];
+    
+    if (knownRubyGems.includes(packageName.toLowerCase())) {
+      return 'rubygems';
+    }
+    
     // Default to npm
     return 'npm';
   }
