@@ -640,10 +640,9 @@
                 const buttonsEl = document.getElementById('auth-buttons');
 
                 if (this.currentUser) {
+                    console.log(this.currentUser);
                     statusEl.innerHTML = `
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <img src="${this.currentUser.avatar_url}" alt="Avatar" 
-                                 style="width: 2rem; height: 2rem; border-radius: 50%;">
                             <span>${this.currentUser.name || this.currentUser.login}</span>
                         </div>
                     `;
@@ -703,12 +702,12 @@
                     return;
                 }
 
-                listEl.innerHTML = this.repositories.map(repo => {
+                listEl.innerHTML = this.repositories.map((repo, index) => {
                     // Parse owner and repo name from full_name (format: "owner/repo")
                     const [owner, repoName] = repo.full_name.split('/');
                     
                     return `
-                        <li class="repo-item" onclick="app.selectRepository('${owner}', '${repoName}')">
+                        <li class="repo-item" data-owner="${owner}" data-repo="${repoName}" data-index="${index}">
                             <div style="font-weight: 500;">${repoName}</div>
                             <div style="font-size: 0.875rem; color: var(--text-secondary);">
                                 ${repo.language || 'Unknown'} • ${repo.stargazers_count} stars
@@ -716,16 +715,29 @@
                         </li>
                     `;
                 }).join('');
+
+                // Add click event listeners after rendering
+                document.querySelectorAll('.repo-item').forEach(item => {
+                    item.addEventListener('click', (event) => {
+                        const owner = item.getAttribute('data-owner');
+                        const repo = item.getAttribute('data-repo');
+                        console.log('Repository clicked:', owner, repo); // Debug log
+                        this.selectRepository(owner, repo, event.currentTarget);
+                    });
+                });
             }
 
-            async selectRepository(owner, repo) {
+            async selectRepository(owner, repo, clickedElement) {
+                console.log('selectRepository called with:', owner, repo); // Debug log
                 this.selectedRepo = { owner, repo };
                 
-                // Update UI
+                // Update UI - remove active class from all items and add to clicked item
                 document.querySelectorAll('.repo-item').forEach(item => {
                     item.classList.remove('active');
                 });
-                event.currentTarget.classList.add('active');
+                if (clickedElement) {
+                    clickedElement.classList.add('active');
+                }
 
                 // Show loading
                 document.getElementById('analysis-content').innerHTML = `
@@ -744,62 +756,115 @@
                             <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i>
                             <h3>Analysis Failed</h3>
                             <p>Unable to analyze ${owner}/${repo}. Please try again.</p>
+                            <button class="btn btn-primary" onclick="app.selectRepository('${owner}', '${repo}', null)" style="margin-top: 1rem;">
+                                <i class="fas fa-redo"></i> Try Again
+                            </button>
                         </div>
                     `;
                 }
             }
 
             async loadAnalysis(owner, repo) {
-                const response = await fetch(`/api/analysis/comprehensive/${owner}/${repo}`);
-                const analysis = await response.json();
-
-                this.renderAnalysis(analysis);
+                console.log('loadAnalysis called for:', owner, repo); // Debug log
+                
+                // Use the documented API endpoint from README.md
+                const url = `/api/github/repository/${owner}/${repo}/stats`;
+                console.log('Fetching from URL:', url); // Debug log
+                
+                const response = await fetch(url);
+                console.log('Response status:', response.status, response.statusText); // Debug log
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error Response:', errorText); // Debug log
+                    throw new Error(`Analysis failed: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Analysis data received:', data); // Debug log
+                this.renderAnalysis(data.stats);
             }
 
-            renderAnalysis(analysis) {
-                const grade = this.getGrade(analysis.overallScore);
+            renderAnalysis(stats) {
+                const healthScore = stats.health_score || 0;
+                const grade = this.getGrade(healthScore);
                 const gradeClass = grade.toLowerCase().replace('+', '');
 
                 document.getElementById('analysis-content').innerHTML = `
                     <div class="analysis-header">
                         <div>
-                            <h2>${this.selectedRepo.owner}/${this.selectedRepo.repo}</h2>
+                            <h2>${stats.repository.name}</h2>
                             <p class="text-secondary">Tech Health Analysis</p>
+                            ${stats.repository.description ? `<p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">${stats.repository.description}</p>` : ''}
                         </div>
                         <div class="health-score">
                             <div class="score-circle score-${gradeClass}">
                                 ${grade}
                             </div>
                             <div>
-                                <div style="font-weight: 600;">${analysis.overallScore}/100</div>
-                                <div class="text-secondary">Overall Score</div>
+                                <div style="font-weight: 600;">${healthScore}/100</div>
+                                <div class="text-secondary">Health Score</div>
                             </div>
                         </div>
                     </div>
 
                     <div class="metrics-grid">
                         <div class="metric-card">
-                            <div class="metric-label">Code Quality</div>
-                            <div class="metric-value">${analysis.codeQuality?.score || 0}/100</div>
+                            <div class="metric-label">Primary Language</div>
+                            <div class="metric-value">${stats.code_quality.primary_language || 'Unknown'}</div>
                         </div>
                         <div class="metric-card">
-                            <div class="metric-label">DORA Performance</div>
-                            <div class="metric-value">${analysis.doraMetrics?.classification || 'Unknown'}</div>
+                            <div class="metric-label">Recent Commits</div>
+                            <div class="metric-value">${stats.activity.commits_last_30_days || 0}</div>
                         </div>
                         <div class="metric-card">
-                            <div class="metric-label">Security Issues</div>
-                            <div class="metric-value">${analysis.codeQuality?.security?.issues?.length || 0}</div>
+                            <div class="metric-label">Contributors</div>
+                            <div class="metric-value">${stats.activity.contributors_count || 0}</div>
                         </div>
                         <div class="metric-card">
-                            <div class="metric-label">Test Coverage</div>
-                            <div class="metric-value">${analysis.codeQuality?.testCoverage || 'N/A'}</div>
+                            <div class="metric-label">Open Issues</div>
+                            <div class="metric-value">${stats.activity.open_issues_count || 0}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Stars</div>
+                            <div class="metric-value">${stats.popularity.stars || 0}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Forks</div>
+                            <div class="metric-value">${stats.popularity.forks || 0}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Repository Size</div>
+                            <div class="metric-value">${this.formatSize(stats.repository.size || 0)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Has License</div>
+                            <div class="metric-value">${stats.code_quality.has_license ? '✅ Yes' : '❌ No'}</div>
                         </div>
                     </div>
 
-                    <div style="text-align: center; margin-top: 2rem;">
-                        <button class="btn btn-primary" onclick="app.generateReport()">
+                    ${stats.code_quality.languages && stats.code_quality.languages.length > 0 ? `
+                        <div style="margin-top: 2rem;">
+                            <h3 style="margin-bottom: 1rem;">Language Distribution</h3>
+                            <div style="background: var(--background); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+                                ${stats.code_quality.languages.map(lang => `
+                                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.5rem;">
+                                        <span style="font-weight: 500;">${lang.language}</span>
+                                        <span style="color: var(--text-secondary);">${lang.percentage}%</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div style="text-align: center; margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="app.generateReport()" style="min-width: 200px;">
                             <i class="fas fa-file-pdf"></i>
-                            Generate Full Report
+                            Generate Tech Health Report
+                        </button>
+                        <button class="btn btn-outline" onclick="app.generateStreamingReport()" style="min-width: 200px;">
+                            <i class="fas fa-chart-line"></i>
+                            Advanced Analysis
                         </button>
                     </div>
                 `;
@@ -816,13 +881,149 @@
             }
 
             async generateReport() {
-                if (!this.selectedRepo) return;
+                if (!this.selectedRepo) {
+                    this.showNotification('Please select a repository first', 'error');
+                    return;
+                }
 
                 const { owner, repo } = this.selectedRepo;
-                const url = `/api/reports/generate/${owner}/${repo}?format=pdf`;
                 
-                // Open report in new tab
-                window.open(url, '_blank');
+                try {
+                    // Show loading state
+                    const btn = event.target;
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Report...';
+                    btn.disabled = true;
+
+                    // Generate report using the documented API
+                    const url = `/api/reports/generate/${owner}/${repo}?format=pdf`;
+                    
+                    // First check if the report endpoint exists, fallback to basic stats
+                    try {
+                        const response = await fetch(url, { method: 'HEAD' });
+                        if (response.ok) {
+                            // Advanced report generation available
+                            window.open(url, '_blank');
+                            this.showNotification('Tech Health Report generated successfully!', 'success');
+                        } else {
+                            throw new Error('Report generation not available');
+                        }
+                    } catch (error) {
+                        // Fallback: Generate a simple report with current stats
+                        this.generateBasicReport(owner, repo);
+                    }
+
+                    // Restore button
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    
+                } catch (error) {
+                    console.error('Report generation failed:', error);
+                    this.showNotification(`Report generation failed: ${error.message}`, 'error');
+                    
+                    // Restore button
+                    const btn = event.target;
+                    btn.innerHTML = '<i class="fas fa-file-pdf"></i> Generate Tech Health Report';
+                    btn.disabled = false;
+                }
+            }
+
+            async generateStreamingReport() {
+                if (!this.selectedRepo) {
+                    this.showNotification('Please select a repository first', 'error');
+                    return;
+                }
+
+                const { owner, repo } = this.selectedRepo;
+                
+                try {
+                    // Show loading state
+                    const btn = event.target;
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Analysis...';
+                    btn.disabled = true;
+
+                    // Try advanced streaming analysis
+                    const streamUrl = `/api/analysis/streaming/${owner}/${repo}`;
+                    
+                    // Check if streaming endpoint exists
+                    const testResponse = await fetch(`/api/analysis/comprehensive/${owner}/${repo}`);
+                    if (testResponse.ok) {
+                        // Advanced analysis available
+                        this.startStreamingAnalysis(owner, repo);
+                    } else {
+                        // Fallback to regular analysis
+                        await this.loadAnalysis(owner, repo);
+                        this.showNotification('Basic analysis completed. Advanced features coming soon!', 'info');
+                    }
+
+                    // Restore button
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+
+                } catch (error) {
+                    console.error('Advanced analysis failed:', error);
+                    this.showNotification(`Advanced analysis failed: ${error.message}`, 'error');
+                    
+                    // Restore button
+                    const btn = event.target;
+                    btn.innerHTML = '<i class="fas fa-chart-line"></i> Advanced Analysis';
+                    btn.disabled = false;
+                }
+            }
+
+            generateBasicReport(owner, repo) {
+                // Create a simple HTML report based on current stats
+                const reportContent = `
+                    <html>
+                    <head>
+                        <title>Tech Health Report - ${owner}/${repo}</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; margin: 40px; }
+                            .header { text-align: center; margin-bottom: 30px; }
+                            .metric { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>Tech Health Report</h1>
+                            <h2>${owner}/${repo}</h2>
+                            <p>Generated on ${new Date().toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                            <p><strong>Note:</strong> This is a basic report. For comprehensive analysis with DORA metrics, security scanning, and industry benchmarking, please ensure all Phase 2 and Phase 3 components are properly configured.</p>
+                        </div>
+                    </body>
+                    </html>
+                `;
+                
+                const blob = new Blob([reportContent], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `tech-health-report-${owner}-${repo}.html`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                this.showNotification('Basic report downloaded. Upgrade to full platform for comprehensive analysis!', 'info');
+            }
+
+            startStreamingAnalysis(owner, repo) {
+                // Implementation for real-time streaming analysis
+                // This would connect to the Server-Sent Events endpoint
+                this.showNotification('Starting advanced streaming analysis...', 'info');
+                
+                // For now, show a coming soon message
+                setTimeout(() => {
+                    this.showNotification('Advanced streaming analysis is available in the full platform!', 'info');
+                }, 2000);
+            }
+
+            formatSize(size) {
+                if (size < 1024) return size + ' B';
+                if (size < 1024 * 1024) return (size / 1024).toFixed(2) + ' KB';
+                if (size < 1024 * 1024 * 1024) return (size / (1024 * 1024)).toFixed(2) + ' MB';
+                return (size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
             }
         }
 
