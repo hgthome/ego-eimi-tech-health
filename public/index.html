@@ -640,24 +640,45 @@
                 const buttonsEl = document.getElementById('auth-buttons');
 
                 if (this.currentUser) {
-                    console.log(this.currentUser);
                     statusEl.innerHTML = `
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <span>${this.currentUser.name || this.currentUser.login}</span>
                         </div>
                     `;
                     buttonsEl.innerHTML = `
-                        <button class="btn btn-outline" onclick="app.logout()">
+                        <button id="logout-btn" class="btn btn-outline">
                             <i class="fas fa-sign-out-alt"></i> Logout
                         </button>
                     `;
+                    
+                    // Add event listener for logout button
+                    setTimeout(() => {
+                        const logoutBtn = document.getElementById('logout-btn');
+                        if (logoutBtn) {
+                            logoutBtn.addEventListener('click', (event) => {
+                                console.log('Logout button clicked via event listener');
+                                this.logout();
+                            });
+                        }
+                    }, 10);
                 } else {
                     statusEl.innerHTML = '';
                     buttonsEl.innerHTML = `
-                        <button class="btn btn-primary" onclick="app.authenticate()">
+                        <button id="login-btn" class="btn btn-primary">
                             <i class="fab fa-github"></i> Login with GitHub
                         </button>
                     `;
+                    
+                    // Add event listener for login button
+                    setTimeout(() => {
+                        const loginBtn = document.getElementById('login-btn');
+                        if (loginBtn) {
+                            loginBtn.addEventListener('click', (event) => {
+                                console.log('Login button clicked via event listener');
+                                this.authenticate();
+                            });
+                        }
+                    }, 10);
                 }
             }
 
@@ -858,16 +879,36 @@
                     ` : ''}
 
                     <div style="text-align: center; margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="app.generateReport()" style="min-width: 200px;">
+                        <button id="generate-report-btn" class="btn btn-primary" style="min-width: 200px;">
                             <i class="fas fa-file-pdf"></i>
                             Generate Tech Health Report
                         </button>
-                        <button class="btn btn-outline" onclick="app.generateStreamingReport()" style="min-width: 200px;">
+                        <button id="generate-streaming-btn" class="btn btn-outline" style="min-width: 200px;">
                             <i class="fas fa-chart-line"></i>
                             Advanced Analysis
                         </button>
                     </div>
                 `;
+
+                // Add event listeners after the HTML is rendered
+                setTimeout(() => {
+                    const reportBtn = document.getElementById('generate-report-btn');
+                    const streamingBtn = document.getElementById('generate-streaming-btn');
+                    
+                    if (reportBtn) {
+                        reportBtn.addEventListener('click', (event) => {
+                            console.log('Report button clicked via event listener');
+                            this.generateReport(event);
+                        });
+                    }
+                    
+                    if (streamingBtn) {
+                        streamingBtn.addEventListener('click', (event) => {
+                            console.log('Streaming button clicked via event listener');
+                            this.generateStreamingReport(event);
+                        });
+                    }
+                }, 100); // Small delay to ensure DOM is updated
             }
 
             getGrade(score) {
@@ -880,7 +921,9 @@
                 return 'D';
             }
 
-            async generateReport() {
+            async generateReport(event) {
+                console.log('generateReport function called', event); // Debug log
+                
                 if (!this.selectedRepo) {
                     this.showNotification('Please select a repository first', 'error');
                     return;
@@ -890,45 +933,76 @@
                 
                 try {
                     // Show loading state
-                    const btn = event.target;
-                    const originalText = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Report...';
-                    btn.disabled = true;
+                    const btn = event ? event.target : null;
+                    let originalText = '';
+                    if (btn) {
+                        originalText = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Report...';
+                        btn.disabled = true;
+                    }
 
-                    // Generate report using the documented API
+                    console.log(`Generating report for ${owner}/${repo}`);
+
+                    // Use the implemented report generation API
                     const url = `/api/reports/generate/${owner}/${repo}?format=pdf`;
                     
-                    // First check if the report endpoint exists, fallback to basic stats
-                    try {
-                        const response = await fetch(url, { method: 'HEAD' });
-                        if (response.ok) {
-                            // Advanced report generation available
-                            window.open(url, '_blank');
-                            this.showNotification('Tech Health Report generated successfully!', 'success');
+                    const response = await fetch(url);
+                    console.log('Report API response status:', response.status);
+
+                    if (response.ok) {
+                        // Check if it's a PDF response or JSON response
+                        const contentType = response.headers.get('content-type');
+                        
+                        if (contentType && contentType.includes('application/pdf')) {
+                            // Direct PDF download
+                            const blob = await response.blob();
+                            const pdfUrl = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = pdfUrl;
+                            a.download = `tech-health-report-${owner}-${repo}.pdf`;
+                            a.click();
+                            URL.revokeObjectURL(pdfUrl);
+                            this.showNotification('Tech Health Report downloaded successfully!', 'success');
                         } else {
-                            throw new Error('Report generation not available');
+                            // JSON response with report data
+                            const data = await response.json();
+                            if (data.success) {
+                                this.showNotification('Tech Health Report generated successfully!', 'success');
+                                // Could open preview or download based on response
+                                if (data.data.reportId) {
+                                    const downloadUrl = `/api/reports/${data.data.reportId}/download?format=pdf`;
+                                    window.open(downloadUrl, '_blank');
+                                }
+                            } else {
+                                throw new Error(data.error || 'Report generation failed');
+                            }
                         }
-                    } catch (error) {
-                        // Fallback: Generate a simple report with current stats
-                        this.generateBasicReport(owner, repo);
+                    } else {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `Report generation failed: ${response.status}`);
                     }
 
                     // Restore button
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
+                    if (btn) {
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }
                     
                 } catch (error) {
                     console.error('Report generation failed:', error);
                     this.showNotification(`Report generation failed: ${error.message}`, 'error');
                     
                     // Restore button
-                    const btn = event.target;
-                    btn.innerHTML = '<i class="fas fa-file-pdf"></i> Generate Tech Health Report';
-                    btn.disabled = false;
+                    if (event && event.target) {
+                        event.target.innerHTML = '<i class="fas fa-file-pdf"></i> Generate Tech Health Report';
+                        event.target.disabled = false;
+                    }
                 }
             }
 
-            async generateStreamingReport() {
+            async generateStreamingReport(event) {
+                console.log('generateStreamingReport function called', event); // Debug log
+                
                 if (!this.selectedRepo) {
                     this.showNotification('Please select a repository first', 'error');
                     return;
@@ -938,85 +1012,92 @@
                 
                 try {
                     // Show loading state
-                    const btn = event.target;
-                    const originalText = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Analysis...';
-                    btn.disabled = true;
-
-                    // Try advanced streaming analysis
-                    const streamUrl = `/api/analysis/streaming/${owner}/${repo}`;
-                    
-                    // Check if streaming endpoint exists
-                    const testResponse = await fetch(`/api/analysis/comprehensive/${owner}/${repo}`);
-                    if (testResponse.ok) {
-                        // Advanced analysis available
-                        this.startStreamingAnalysis(owner, repo);
-                    } else {
-                        // Fallback to regular analysis
-                        await this.loadAnalysis(owner, repo);
-                        this.showNotification('Basic analysis completed. Advanced features coming soon!', 'info');
+                    const btn = event ? event.target : null;
+                    let originalText = '';
+                    if (btn) {
+                        originalText = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Analysis...';
+                        btn.disabled = true;
                     }
 
+                    console.log(`Starting streaming analysis for ${owner}/${repo}`);
+
+                    // Show progress modal
+                    this.showStreamingProgress(owner, repo);
+
+                    // Connect to Server-Sent Events for streaming progress
+                    const streamUrl = `/api/reports/streaming/${owner}/${repo}?format=html`;
+                    const eventSource = new EventSource(streamUrl);
+
+                    eventSource.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            console.log('Streaming progress:', data);
+                            this.updateStreamingProgress(data);
+                            
+                            if (data.complete || data.stage === 'complete') {
+                                eventSource.close();
+                                this.showNotification('Streaming analysis completed!', 'success');
+                                
+                                // Open the generated report
+                                if (data.previewUrl) {
+                                    window.open(data.previewUrl, '_blank');
+                                } else if (data.downloadUrl) {
+                                    window.open(data.downloadUrl, '_blank');
+                                }
+                                
+                                this.hideStreamingProgress();
+                            }
+                            
+                            if (data.error || data.stage === 'error') {
+                                eventSource.close();
+                                throw new Error(data.message || 'Streaming analysis failed');
+                            }
+                            
+                        } catch (parseError) {
+                            console.error('Error parsing streaming data:', parseError);
+                        }
+                    };
+
+                    eventSource.onerror = (error) => {
+                        console.error('EventSource error:', error);
+                        eventSource.close();
+                        this.hideStreamingProgress();
+                        this.showNotification('Streaming connection failed. Falling back to regular analysis...', 'warning');
+                        
+                        // Fallback to regular analysis
+                        setTimeout(() => {
+                            this.loadAnalysis(owner, repo);
+                        }, 1000);
+                    };
+
+                    // Auto-close connection after 5 minutes
+                    setTimeout(() => {
+                        if (eventSource.readyState !== EventSource.CLOSED) {
+                            eventSource.close();
+                            this.hideStreamingProgress();
+                            this.showNotification('Analysis timed out. Please try again.', 'error');
+                        }
+                    }, 300000); // 5 minutes
+
                     // Restore button
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
+                    if (btn) {
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }
 
                 } catch (error) {
-                    console.error('Advanced analysis failed:', error);
-                    this.showNotification(`Advanced analysis failed: ${error.message}`, 'error');
+                    console.error('Streaming analysis failed:', error);
+                    this.showNotification(`Streaming analysis failed: ${error.message}`, 'error');
                     
                     // Restore button
-                    const btn = event.target;
-                    btn.innerHTML = '<i class="fas fa-chart-line"></i> Advanced Analysis';
-                    btn.disabled = false;
+                    if (event && event.target) {
+                        event.target.innerHTML = '<i class="fas fa-chart-line"></i> Advanced Analysis';
+                        event.target.disabled = false;
+                    }
+                    
+                    this.hideStreamingProgress();
                 }
-            }
-
-            generateBasicReport(owner, repo) {
-                // Create a simple HTML report based on current stats
-                const reportContent = `
-                    <html>
-                    <head>
-                        <title>Tech Health Report - ${owner}/${repo}</title>
-                        <style>
-                            body { font-family: Arial, sans-serif; margin: 40px; }
-                            .header { text-align: center; margin-bottom: 30px; }
-                            .metric { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="header">
-                            <h1>Tech Health Report</h1>
-                            <h2>${owner}/${repo}</h2>
-                            <p>Generated on ${new Date().toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                            <p><strong>Note:</strong> This is a basic report. For comprehensive analysis with DORA metrics, security scanning, and industry benchmarking, please ensure all Phase 2 and Phase 3 components are properly configured.</p>
-                        </div>
-                    </body>
-                    </html>
-                `;
-                
-                const blob = new Blob([reportContent], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `tech-health-report-${owner}-${repo}.html`;
-                a.click();
-                URL.revokeObjectURL(url);
-                
-                this.showNotification('Basic report downloaded. Upgrade to full platform for comprehensive analysis!', 'info');
-            }
-
-            startStreamingAnalysis(owner, repo) {
-                // Implementation for real-time streaming analysis
-                // This would connect to the Server-Sent Events endpoint
-                this.showNotification('Starting advanced streaming analysis...', 'info');
-                
-                // For now, show a coming soon message
-                setTimeout(() => {
-                    this.showNotification('Advanced streaming analysis is available in the full platform!', 'info');
-                }, 2000);
             }
 
             formatSize(size) {
@@ -1024,6 +1105,144 @@
                 if (size < 1024 * 1024) return (size / 1024).toFixed(2) + ' KB';
                 if (size < 1024 * 1024 * 1024) return (size / (1024 * 1024)).toFixed(2) + ' MB';
                 return (size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+            }
+
+            showStreamingProgress(owner, repo) {
+                // Create progress modal
+                const modal = document.createElement('div');
+                modal.id = 'streaming-progress-modal';
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 10000;
+                `;
+
+                modal.innerHTML = `
+                    <div style="
+                        background: var(--card-background);
+                        padding: 2rem;
+                        border-radius: 1rem;
+                        max-width: 500px;
+                        width: 90%;
+                        text-align: center;
+                        box-shadow: var(--shadow-lg);
+                    ">
+                        <h3 style="margin-bottom: 1rem;">Generating Advanced Report</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                            Analyzing ${owner}/${repo} with comprehensive tech health assessment...
+                        </p>
+                        
+                        <div id="progress-container" style="margin-bottom: 1.5rem;">
+                            <div style="
+                                background: var(--background);
+                                border-radius: 1rem;
+                                padding: 1rem;
+                                margin-bottom: 1rem;
+                            ">
+                                <div id="progress-bar" style="
+                                    width: 0%;
+                                    height: 8px;
+                                    background: var(--primary-color);
+                                    border-radius: 4px;
+                                    transition: width 0.3s ease;
+                                "></div>
+                            </div>
+                            
+                            <div id="progress-stage" style="font-weight: 500; margin-bottom: 0.5rem;">
+                                Initializing analysis...
+                            </div>
+                            <div id="progress-description" style="color: var(--text-secondary); font-size: 0.9rem;">
+                                Starting comprehensive analysis pipeline
+                            </div>
+                        </div>
+                        
+                        <button id="cancel-streaming-btn" class="btn btn-outline" style="margin-top: 1rem;">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                `;
+
+                document.body.appendChild(modal);
+                
+                // Add event listener for cancel button
+                setTimeout(() => {
+                    const cancelBtn = document.getElementById('cancel-streaming-btn');
+                    if (cancelBtn) {
+                        cancelBtn.addEventListener('click', (event) => {
+                            console.log('Cancel streaming button clicked via event listener');
+                            this.cancelStreaming();
+                        });
+                    }
+                }, 10);
+            }
+
+            updateStreamingProgress(data) {
+                const progressBar = document.getElementById('progress-bar');
+                const progressStage = document.getElementById('progress-stage');
+                const progressDescription = document.getElementById('progress-description');
+
+                if (progressBar && data.percentage !== undefined) {
+                    progressBar.style.width = `${Math.min(100, Math.max(0, data.percentage))}%`;
+                }
+
+                if (progressStage) {
+                    let stageText = '';
+                    switch (data.stage) {
+                        case 'analysis':
+                            stageText = `Analysis (${data.step || 0}/${data.totalSteps || 6})`;
+                            break;
+                        case 'report':
+                            stageText = `Report Generation (${data.step || 0}/${data.totalSteps || 5})`;
+                            break;
+                        case 'complete':
+                            stageText = 'Complete';
+                            break;
+                        case 'error':
+                            stageText = 'Error';
+                            break;
+                        default:
+                            stageText = data.stage || 'Processing';
+                    }
+                    progressStage.textContent = stageText;
+                }
+
+                if (progressDescription && data.description) {
+                    progressDescription.textContent = data.description;
+                }
+
+                // Update progress bar color based on stage
+                if (progressBar) {
+                    if (data.stage === 'error') {
+                        progressBar.style.background = 'var(--danger-color)';
+                    } else if (data.stage === 'complete') {
+                        progressBar.style.background = 'var(--success-color)';
+                    } else {
+                        progressBar.style.background = 'var(--primary-color)';
+                    }
+                }
+            }
+
+            hideStreamingProgress() {
+                const modal = document.getElementById('streaming-progress-modal');
+                if (modal) {
+                    modal.remove();
+                }
+            }
+
+            cancelStreaming() {
+                // This would be called if user cancels streaming
+                this.hideStreamingProgress();
+                this.showNotification('Report generation cancelled', 'info');
+                
+                // Could implement actual cancellation logic here
+                // For now, just hide the modal
             }
         }
 
